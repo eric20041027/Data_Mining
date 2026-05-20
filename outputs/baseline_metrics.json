@@ -1,0 +1,20 @@
+{
+  "oof_macro_f1": 0.5252265869249,
+  "n_overlap": 594,
+  "n_overlap_constraint_changes": 91,
+  "elapsed_sec": 18.905383825302124,
+  "labels_internal_order": [
+    "neoplasms",
+    "digestive system diseases",
+    "nervous system diseases",
+    "cardiovascular diseases",
+    "general pathological conditions"
+  ],
+  "label2idx": {
+    "neoplasms": 0,
+    "digestive system diseases": 1,
+    "nervous system diseases": 2,
+    "cardiovascular diseases": 3,
+    "general pathological conditions": 4
+  }
+}

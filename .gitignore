@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.Python
+.venv/
+venv/
+env/
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Project: large generated artifacts (do not commit, regenerate via training)
+outputs/bert_runs/
+outputs/hf_cache/
+hf_cache/
+*.pt
+*.bin
+*.safetensors
