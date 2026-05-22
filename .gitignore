@@ -23,3 +23,6 @@ hf_cache/
 *.pt
 *.bin
 *.safetensors
+
+# Training artefact backups (keep on Drive, never in git)
+*.tar.gz

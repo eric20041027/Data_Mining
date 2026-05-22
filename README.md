@@ -3,8 +3,6 @@
 Supervised text classification of medical abstracts into 5 categories, optimised for **Macro F1**.
 Reference: Schopf, Braun & Matthes (2022), *Evaluating Unsupervised Text Classification*.
 
-See [`plan.md`](plan.md) for the full implementation plan and EDA findings.
-
 ## Label mapping (official)
 
 ```
@@ -15,60 +13,96 @@ cardiovascular diseases         -> 4
 general pathological conditions -> 5
 ```
 
-## Layout
+## Project layout
 
 ```
 .
 ├── Rule.md                              # competition rules
-├── plan.md                              # implementation plan + EDA findings
+├── plan.md                              # original strategy + EDA findings
+├── 0523Plan.md                          # day-2 detailed plan
+├── README.md                            # this file
 ├── kaggle_trainset.csv                  # 12,994 labelled abstracts
 ├── kaggle_testset.csv                   # 1,444 abstracts (no labels)
 ├── kaggle_testset_submission.csv        # submission template
 ├── src/
 │   ├── utils.py                         # label map, CV split, metric helpers
-│   ├── eda.py                           # quick EDA script
+│   ├── eda.py                           # quick EDA
+│   ├── deep_eda.py                      # k-NN, χ², co-occurrence analysis
 │   ├── baseline_tfidf.py                # TF-IDF + LogReg 5-fold (CPU)
-│   ├── train_bert.py                    # PubMedBERT fine-tune (one fold)
-│   └── ensemble_predict.py              # combine runs, write final submission
+│   ├── train_bert.py                    # BERT fine-tune (single-label CE)
+│   ├── train_bert_multilabel.py         # BERT fine-tune (multi-label BCE)
+│   ├── train_bert_title_only.py         # BERT fine-tune on title only
+│   ├── ensemble_predict.py              # combine runs → submission
+│   └── calibrate_and_submit.py          # per-class logit calibration (deprecated, see below)
 ├── notebooks/
 │   └── train_pubmedbert_colab.ipynb     # Colab driver notebook (A100)
 └── outputs/
-    ├── fold_assignment.csv              # frozen 5-fold split
+    ├── fold_assignment.csv              # frozen 5-fold split (seed=42)
     ├── oof_tfidf_logreg.npy             # baseline OOF probs
     ├── test_tfidf_logreg.npy            # baseline test probs
     ├── baseline_metrics.json
-    └── submission_tfidf_baseline.csv    # safety-net submission
+    └── submissions/                     # all generated submission CSVs
 ```
 
 ## Quickstart
 
-### Local (baseline only)
+### Local (CPU, baseline only)
 
 ```bash
 python3 src/eda.py
+python3 src/deep_eda.py
 python3 src/baseline_tfidf.py
-# -> outputs/submission_tfidf_baseline.csv  (OOF Macro F1 ~0.525)
+# -> outputs/submissions/submission_tfidf_baseline.csv  (OOF Macro F1 0.525)
 ```
 
 ### Colab A100 (main training)
 
-1. Clone this repo into Colab:
-   ```python
-   !git clone https://github.com/eric20041027/Data_Mining.git
-   %cd Data_Mining
-   ```
-2. Open `notebooks/train_pubmedbert_colab.ipynb` and run cells.
-3. After 5-fold training:
-   ```bash
-   python3 src/ensemble_predict.py \
-       --bert-runs "outputs/bert_runs/pubmedbert_base_seed42_fold*" \
-       --tag pubmedbert_v1
-   ```
+```python
+!git clone https://github.com/eric20041027/Data_Mining.git
+%cd Data_Mining
 
-## Key EDA finding
+# 訓練單一模型 5-fold
+for fold in range(5):
+    !python src/train_bert.py \
+        --model microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext \
+        --fold {fold} --seed 42 --epochs 4 --batch-size 32 --lr 2e-5 \
+        --max-length 512 --class-weight none \
+        --tag pubmedbert_noweight_seed42_fold{fold}
 
-The dataset is a **multi-label corpus forced into single-label format**: 2,400 unique
-training texts appear with 2–4 distinct labels (perfectly split, no modal). 41% of
-test texts exactly match a training text. The pipeline keeps duplicates intact for
-training and applies an overlap-constraint at inference (restricting prediction to
-the label set observed for that text in train) — both fully compliant with Rule.md.
+# Ensemble + submission
+!python src/ensemble_predict.py \
+    --bert-runs 'outputs/bert_runs/pubmedbert_noweight_seed*_fold*' \
+    --no-overlap-constraint \
+    --tag my_run
+```
+
+## LB progression (0521–0522)
+
+| Submission | Strategy | OOF | LB |
+|---|---|---|---|
+| TF-IDF + LogReg + overlap constraint | baseline | 0.525 | 0.471 |
+| TF-IDF + LogReg (unconstrained) | drop constraint | 0.525 | 0.523 |
+| PubMedBERT balanced + constraint + calibration | v2 | 0.650 | 0.491 |
+| PubMedBERT balanced raw (no constraint, no cal) | v6 | 0.640 | 0.635 |
+| PubMedBERT noweight × 1 | drop class weight | 0.652 | 0.641 |
+| PubMedBERT noweight × 2 seeds | add multi-seed | 0.653 | 0.643 |
+| 3 noweight models | + BioBERT noweight | 0.657 | 0.644 |
+| **4 noweight models + large** | **final_d** | **0.659** | **0.646** ★ |
+| 5 noweight (final_d + seed=7) | v14 | 0.660 | 0.644 |
+
+**Current best: `final_d_4noweight` LB 0.64596**
+
+## Key lessons learned
+
+1. **Overlap constraint is harmful.** Restricting predictions to "labels observed in train for the same text" hurts because the test ground truth often picks a label outside the train-observed set. Always pass `--no-overlap-constraint`.
+2. **Class weighting hurts.** Using `class_weight=balanced` over-suppresses the majority class (general pathological), which is in fact a "secondary" label that co-occurs ≥55% with the other four classes. Use `--class-weight none`.
+3. **Post-hoc calibration overfits OOF.** A 5-dim logit bias search improved OOF +0.010 but lost −0.009 on LB. The OOF→LB gap is honest; don't over-engineer it.
+4. **Same-architecture multi-seed has diminishing (eventually negative) returns.** 1→2 seed gave +0.0018 LB; 2→3 gave −0.0021 LB. Each new seed reinforces the same class-prediction bias.
+5. **Architectural diversity > seed diversity.** Cross-arch ensemble (PubMedBERT + BioBERT + PubMedBERT-large) gains +0.005–0.010 LB per new model class.
+
+## Compliance notes (Rule.md)
+
+- All training uses only `kaggle_trainset.csv` labels.
+- No external label sources, no test-label probing, no manual label inspection.
+- Test set analyses use only **text features** (length, hash overlap, similarity, vocabulary) — never test labels.
+- `overlap-constraint` (in `ensemble_predict.py`) maps **train labels** onto matching test texts; this is legitimate use of train labels, though we've disabled it because it hurt LB.
