@@ -78,6 +78,11 @@ def main() -> None:
         help="Alternative: keep top N most confident rows (overrides --threshold)",
     )
     p.add_argument(
+        "--top-n-per-class", type=int, default=None,
+        help="Alternative: keep top N most confident rows PER predicted class "
+             "(ensures class balance; overrides --threshold and --top-n)",
+    )
+    p.add_argument(
         "--out", default="outputs/pseudo_labels.csv",
         help="Output CSV path (relative to project root)",
     )
@@ -91,7 +96,24 @@ def main() -> None:
     max_probs = test_probs.max(axis=1)
     pred_idx = test_probs.argmax(axis=1)
 
-    if args.top_n is not None:
+    if args.top_n_per_class is not None:
+        # Per-class top N: ensure each class is represented
+        keep_mask = np.zeros(len(test_probs), dtype=bool)
+        for cls_idx in range(len(LABEL_LIST)):
+            cls_rows = np.where(pred_idx == cls_idx)[0]
+            if len(cls_rows) == 0:
+                print(f"  ⚠️ Class {cls_idx} ({LABEL_LIST[cls_idx]}): 0 predicted rows")
+                continue
+            # Take top N most confident in this class
+            cls_confidence = max_probs[cls_rows]
+            top_in_class = cls_rows[np.argsort(-cls_confidence)[: args.top_n_per_class]]
+            keep_mask[top_in_class] = True
+            avg_conf = max_probs[top_in_class].mean()
+            print(f"  Class {cls_idx} ({LABEL_LIST[cls_idx]}): "
+                  f"kept {len(top_in_class)}/{len(cls_rows)} (avg conf {avg_conf:.3f}, "
+                  f"min {max_probs[top_in_class].min():.3f})")
+        print(f"\nPer-class top-{args.top_n_per_class} selection")
+    elif args.top_n is not None:
         top = np.argsort(-max_probs)[: args.top_n]
         keep_mask = np.zeros(len(test_probs), dtype=bool)
         keep_mask[top] = True
