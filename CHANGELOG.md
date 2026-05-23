@@ -158,31 +158,59 @@
 
 ---
 
-### Phase 4 — Day 4 (2026-05-23, 規劃中)
+### Phase 4 — Day 4 (2026-05-23): Multi-Architecture + BCE
 
-#### EXP-017 (PLANNED): SciBERT noweight
+#### EXP-017: SciBERT noweight
 - **模型**：`allenai/scibert_scivocab_uncased`
-- **預期 OOF**：0.63–0.65
-- **預期 LB（加進 ensemble）**：+0.005
+- **設定**：5-fold, seed=42, epochs=4, batch=32, lr=2e-5, class-weight=none
+- **OOF Macro F1**：**0.6471**（per-fold 0.664/0.653/0.633/0.653/0.633）
+- **訓練時間**：~14 分/fold（總 ~70 分鐘）
+- **解讀**：跟 BioBERT 同等級（0.6423），稍弱於 PubMedBERT noweight（0.6524）。CS+Bio 預訓練詞彙不同，主要價值在 ensemble 多樣性
 
-#### EXP-018 (PLANNED): DeBERTa-v3-base noweight
+#### EXP-018: DeBERTa-v3-base noweight
 - **模型**：`microsoft/deberta-v3-base`
-- **設定**：batch=24, lr=1e-5（DeBERTa lr 敏感）
-- **預期 OOF**：0.63–0.67
-- **預期 LB（加進 ensemble）**：+0.005–0.015
+- **設定**：5-fold, seed=42, epochs=4, **batch=24, lr=1e-5**（DeBERTa lr 敏感）
+- **OOF Macro F1**：**0.6450**（per-fold 0.653/0.641/0.637/0.657/0.636）
+- **訓練時間**：~46 分/fold（DeBERTa-v3 disentangled attention 較慢，總 ~76 分鐘）
+- **解讀**：跟其他 base 模型同水準，**架構完全不同**（disentangled attention vs BERT），ensemble 多樣性最佳來源
 
-#### EXP-019 (PLANNED): Multi-label BCE PubMedBERT
+#### EXP-019: Multi-label BCE PubMedBERT ⭐ 重大突破
 - **檔案**：[src/train_bert_multilabel.py](src/train_bert_multilabel.py)
-- **方法**：把每個 train 文本的所有 observed labels 標為 multi-hot target（5-dim binary），loss 從 CE 換成 BCEWithLogitsLoss，`problem_type="multi_label_classification"`
-- **動機**：直接 model 多標籤結構，不再強迫挑一個
-- **預期單模型 OOF**：0.65–0.67
-- **預期 ensemble 收益**：+0.005–0.015
+- **方法**：把每個 train 文本的所有 observed labels 標為 multi-hot target（5-dim binary），loss 從 CE 換成 BCEWithLogitsLoss，`problem_type="multi_label_classification"`，inference 對 sigmoid 結果 normalize 後 argmax
+- **設定**：5-fold, seed=42, epochs=4, batch=32, lr=2e-5
+- **OOF Macro F1**：**0.6957** ⭐ — **單模型 +0.0433 vs PubMedBERT noweight (0.6524)**
+- **Class 5 F1**：**0.5631**（vs CE noweight 0.4968, **+0.066**）
+- **Class 5 recall**：**0.4682**（vs CE noweight 0.3964, **+0.072**）
+- **訓練時間**：~166 秒/fold（總 ~14 分鐘，跟 noweight 一樣）
+- **解讀**：
+  - 是迄今**單一改動最大的 OOF 提升**（單模型超過所有 ensemble）
+  - 解放了多標籤訊號：CE 強迫挑一個 label，BCE 學「所有 observed labels」
+  - 跨 fold「同文本不同 label 共享 multi-hot target」可能帶來輕微 OOF 樂觀（不是 leak，但 OOF→LB gap 可能擴大）
 
-#### EXP-020 (PLANNED): Title-only model
+#### EXP-020 (POSTPONED): Title-only model
 - **檔案**：[src/train_bert_title_only.py](src/train_bert_title_only.py)
-- **方法**：只用文章第一句作 input
+- **狀態**：腳本已 push，但 BCE 結果太強以致時間優先用在 ensemble 探索
 - **預期 OOF**：0.55–0.58
-- **預期 ensemble 收益**：+0.001–0.003
+- **改成**：時間允許再跑
+
+#### EXP-021: 6 個 ensemble 候選的 OOF 對比
+全部跑完後產生 6 個候選 submission，OOF 結果出乎意料：
+
+| 候選 | 組成 | 模型數 | OOF | class 5 F1 | submission class 5 % |
+|---|---|---|---|---|---|
+| `final_bce_only` | BCE only (5-fold) | 1 | **0.6957** | **0.563** | **24.2%** |
+| v15_6models | 4 noweight (final_d 基礎) + SciBERT | 5 | 0.6568 | 0.508 | 19.9% |
+| v16_7models | v15 + DeBERTa | 6 | 0.6585 | 0.508 | 20.2% |
+| v17_no_large | v16 砍 large | 5 | 0.6582 | 0.507 | 20.2% |
+| v18_with_bce | v17 + BCE | 6 | 0.6624 | 0.513 | 20.1% |
+| v19_all | v17 + large + BCE | 7 | 0.6610 | 0.513 | 20.3% |
+
+**關鍵發現**：BCE 加進 5-model CE ensemble 後僅貢獻 +0.004 OOF（v17→v18），遠低於 BCE 單獨的 0.696。原因：
+- 5 個 CE 模型分享同樣的「class 5 under-predict」bias
+- BCE 是唯一不同 bias 的模型，平均後優勢被 5:1 稀釋
+- **BCE alone 反而比 ensemble OOF 高 0.034**
+
+提交決策完全翻轉：BCE-only 取代 ensemble 成為主打。
 
 ---
 
@@ -200,6 +228,11 @@
 | 5/22 | 3 | `submission_final_a_noweight42` | 0.6524 | 0.64133 | 單模型 noweight |
 | 5/22 | 4 | `submission_final_b_pubmed_2seeds` | 0.6526 | 0.64312 | 2 seed PubMedBERT |
 | 5/22 | 5 | `submission_v14_5noweight` | 0.6600 | 0.64391 | +seed=7 反而退步 |
+| 5/23 | 1 | `submission_final_bce_only` | 0.6957 | **TBD** | 主打，BCE 單模型 |
+| 5/23 | 2 | `submission_v18_with_bce` | 0.6624 | TBD | 備案 ensemble |
+| 5/23 | 3 | TBD（視 1, 2 結果） | – | TBD | – |
+| 5/23 | 4 | 保留 | – | – | – |
+| 5/23 | 5 | 保留 | – | – | – |
 
 ---
 
@@ -240,11 +273,25 @@
 4. **跨架構 ensemble**（+0.001–0.002 LB per new arch）
 5. **PubMedBERT-large**（+0.0015 LB）
 
-### 🤔 待驗證
+### 🆕 已驗證效果（0523）
 
-1. **Multi-label BCE 訓練**（預期 +0.005–0.015）
-2. **SciBERT / DeBERTa 新架構**（預期 +0.005 each）
-3. **Title-only ensemble member**（預期 +0.001–0.003）
+6. **Multi-label BCE 訓練**（OOF **+0.043** 對單模型；LB 待驗證）
+   - 解放多標籤訊號是 root cause fix（class 5 F1 +0.066）
+   - 但 ensemble 收益遠不如預期（v18 僅 +0.004 OOF vs CE ensemble）
+   - 因為平均稀釋了 BCE 的獨特 bias
+
+7. **SciBERT noweight**（單模型 OOF 0.647）
+   - 跟 BioBERT 同水準，主要價值在跨架構
+   - ensemble 收益 ~+0.0016 OOF（v15 vs final_d）
+
+8. **DeBERTa-v3 noweight**（單模型 OOF 0.645）
+   - 跟其他 base 相當，但架構真的不同（disentangled attention）
+   - ensemble 收益 ~+0.0017 OOF（v16 vs v15）
+
+### 🤔 待驗證（LB）
+
+1. **BCE 單模型** vs **BCE ensemble**：哪個 LB 高？這決定整個策略
+2. **Title-only ensemble member**（時間允許再跑）
 
 ---
 

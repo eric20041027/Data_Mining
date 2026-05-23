@@ -76,7 +76,7 @@ for fold in range(5):
     --tag my_run
 ```
 
-## LB progression (0521–0522)
+## LB progression (0521–0523)
 
 | Submission | Strategy | OOF | LB |
 |---|---|---|---|
@@ -87,10 +87,23 @@ for fold in range(5):
 | PubMedBERT noweight × 1 | drop class weight | 0.652 | 0.641 |
 | PubMedBERT noweight × 2 seeds | add multi-seed | 0.653 | 0.643 |
 | 3 noweight models | + BioBERT noweight | 0.657 | 0.644 |
-| **4 noweight models + large** | **final_d** | **0.659** | **0.646** ★ |
+| **4 noweight models + large** | **final_d** | **0.659** | **0.646** |
 | 5 noweight (final_d + seed=7) | v14 | 0.660 | 0.644 |
+| **PubMedBERT BCE single** | **multi-label BCE** | **0.696** ⭐ | **TBD** |
+| 5 CE + 1 BCE ensemble | v18 | 0.662 | TBD |
 
-**Current best: `final_d_4noweight` LB 0.64596**
+**Current best (LB confirmed): `final_d_4noweight` LB 0.64596**
+**Pending validation: `final_bce_only` OOF 0.6957** (BCE multi-label single model)
+
+### Phase 4 (0523) results — Multi-architecture + BCE
+
+| Single model | OOF |
+|---|---|
+| SciBERT noweight | 0.6471 |
+| DeBERTa-v3 noweight | 0.6450 |
+| **PubMedBERT BCE multi-label** | **0.6957** ⭐ |
+
+The multi-label BCE training is the **biggest single improvement** (+0.043 OOF over CE noweight) in the entire project so far. Adding the BCE model to a 5-model CE ensemble only added +0.004 because 5 CE models share the same class-5 under-prediction bias, diluting BCE's advantage when averaged.
 
 ## Key lessons learned
 
