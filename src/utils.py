@@ -83,6 +83,31 @@ def make_folds(df: pd.DataFrame, n_splits: int = N_SPLITS, seed: int = SEED) -> 
     return df
 
 
+def make_folds_grouped(df: pd.DataFrame, n_splits: int = N_SPLITS, seed: int = SEED) -> pd.DataFrame:
+    """GroupKFold by text hash — all rows with the same text go to the SAME fold.
+
+    Used for multi-label BCE training to prevent cross-fold target sharing:
+    if text T appears as (T, A) and (T, B) in train, both rows must be in the
+    same fold so that BCE multi-hot targets don't leak val labels into train.
+
+    Uses StratifiedGroupKFold to maintain class balance per fold.
+    """
+    import hashlib
+    from sklearn.model_selection import StratifiedGroupKFold
+
+    df = df.copy()
+    df["_text_hash"] = df["condition"].map(lambda s: hashlib.md5(s.encode("utf-8")).hexdigest())
+    df["fold"] = -1
+    sgkf = StratifiedGroupKFold(n_splits=n_splits, shuffle=True, random_state=seed)
+    for fold, (_, val_idx) in enumerate(
+        sgkf.split(df, df["label_idx"], df["_text_hash"])
+    ):
+        df.loc[val_idx, "fold"] = fold
+    assert (df["fold"] >= 0).all()
+    df = df.drop(columns=["_text_hash"])
+    return df
+
+
 def save_fold_assignment(df: pd.DataFrame, path: Path | None = None) -> Path:
     path = path or OUTPUTS_DIR / "fold_assignment.csv"
     df[["fold"]].to_csv(path, index_label="row_id")

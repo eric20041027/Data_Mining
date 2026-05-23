@@ -44,6 +44,7 @@ from utils import (  # noqa: E402
     load_train,
     macro_f1,
     make_folds,
+    make_folds_grouped,
     set_seed,
 )
 
@@ -137,6 +138,13 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", default=str(OUTPUTS_DIR / "bert_runs"))
     p.add_argument("--tag", default=None)
     p.add_argument("--smoke", action="store_true")
+    p.add_argument(
+        "--grouped-folds",
+        action="store_true",
+        default=True,
+        help="Use GroupKFold by text hash to prevent multi-hot target leak (default: ON for BCE).",
+    )
+    p.add_argument("--no-grouped-folds", dest="grouped_folds", action="store_false")
     return p.parse_args()
 
 
@@ -145,7 +153,9 @@ def main() -> None:
     set_seed(args.seed)
     hf_set_seed(args.seed)
 
-    train = make_folds(load_train(), seed=SEED)
+    fold_fn = make_folds_grouped if args.grouped_folds else make_folds
+    print(f'Using fold function: {fold_fn.__name__}')
+    train = fold_fn(load_train(), seed=SEED)
     test = load_test()
 
     tr = train[train["fold"] != args.fold].reset_index(drop=True)
