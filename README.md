@@ -89,11 +89,13 @@ for fold in range(5):
 | 3 noweight models | + BioBERT noweight | 0.657 | 0.644 |
 | **4 noweight models + large** | **final_d** | **0.659** | **0.646** |
 | 5 noweight (final_d + seed=7) | v14 | 0.660 | 0.644 |
-| PubMedBERT BCE single | multi-label BCE | 0.696 | **0.596** ❌ |
+| PubMedBERT BCE single (StratifiedKFold) | multi-label BCE | 0.696 | **0.596** ❌ |
 | v17_no_large (SciBERT+DeBERTa, no large) | 5-model CE | 0.658 | 0.6455 |
 | v16_7models (all CE) | 7-model CE | 0.659 | 0.6421 |
+| PubMedBERT BCE-Grouped single | BCE + GroupKFold | 0.690 | **0.591** ❌ |
+| v22 (SciBERT replacing BioBERT) | 4-model CE | 0.657 | 0.6437 |
 
-**Current best (LB confirmed): `final_d_4noweight` LB 0.64596** ★
+**Current best (LB confirmed): `final_d_4noweight` LB 0.64596** ★ (since 0522)
 
 ### Phase 4 (0523) results — Multi-architecture + BCE
 
@@ -103,9 +105,23 @@ for fold in range(5):
 | DeBERTa-v3 noweight | 0.6450 | adds ~0 LB |
 | **PubMedBERT BCE multi-label** | **0.6957** | **0.596** (alone, OOF leak) |
 
-**Key 0523 finding — BCE is an OOF trap.** Multi-label BCE training uses full-train multi-hot targets, which means a row's target includes labels from sibling rows in OTHER folds. OOF rocketed to 0.6957, but LB tanked to 0.596 (gap −0.100, the worst we've seen). The BCE+ensemble (v18) was abandoned without submission given the obvious leak signature. To use BCE legitimately we'd need GroupKFold-by-text-hash to keep sibling rows in the same fold.
+**Key 0523 finding — BCE is fundamentally wrong for single-label evaluation.**
+Initial hypothesis: multi-label BCE training had an OOF leak from cross-fold multi-hot
+target sharing. OOF rocketed to 0.6957 but LB tanked to 0.596 (gap −0.100).
+We then retrained with GroupKFold-by-text-hash to eliminate the leak: OOF only
+dropped to 0.6902, but LB stayed at 0.591 (gap −0.099). The leak was a red
+herring — the real issue is that BCE's sigmoid-normalized soft probability
+distributions don't argmax cleanly for single-label evaluation. For multi-label
+datasets forced into single-label scoring, CE + noweight is the correct path,
+not BCE.
 
-**Architectural diversity ceiling.** SciBERT + DeBERTa-v3 noweight (LB 0.6455 in v17) and PubMedBERT-large (LB 0.6460 in final_d) are interchangeable contributors. Combining them (v16, LB 0.6421) does NOT help — bigger ensembles dilute the signal. The 4-model `final_d` configuration appears to be the ceiling of PubMedBERT-family + standard CV.
+**Architectural diversity ceiling.** SciBERT, DeBERTa-v3, BioBERT, and
+PubMedBERT-large noweight are all interchangeable contributors (LB 0.642–0.646
+in various combinations). Combining many models (v16 7-model = 0.6421)
+does NOT help — bigger ensembles dilute the signal. v22 swapping BioBERT for
+SciBERT in final_d gave 0.6437 (slightly worse). The 4-model `final_d`
+configuration (PubMedBERT noweight × 2 seeds + BioBERT + PubMedBERT-large)
+appears to be the ceiling of PubMedBERT-family + standard StratifiedKFold.
 
 ## Key lessons learned
 

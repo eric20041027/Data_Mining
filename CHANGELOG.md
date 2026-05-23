@@ -231,8 +231,8 @@
 | 5/23 | 1 | `submission_final_bce_only` | 0.6957 | **0.59599** ❌ | BCE OOF 灌水 −0.100 gap |
 | 5/23 | 2 | `submission_v17_no_large` | 0.6582 | 0.64553 | 跟 final_d 同 gap，新架構 OOF honest |
 | 5/23 | 3 | `submission_v16_7models` | 0.6585 | 0.64210 | 加 large + 新架構反而 worse |
-| 5/23 | 4 | （未用，留到明天）| – | – | v18 預期 0.633 不值得燒 |
-| 5/23 | 5 | （未用，留到明天）| – | – | – |
+| 5/23 | 4 | `submission_final_bce_grouped_only` | 0.6902 | **0.59076** ❌ | GroupKFold 不是 leak 修法 |
+| 5/23 | 5 | `submission_v22_scibert_replace_biobert` | 0.6573 | 0.64373 | BioBERT > SciBERT |
 
 ---
 
@@ -275,10 +275,12 @@
 
 ### 🆕 已驗證效果（0523）
 
-6. **Multi-label BCE 訓練（OOF 灌水 trap）**
-   - 訓練時 multi-hot targets 用全 train 建構，跨 fold 共享 val labels
-   - OOF 0.6957 看似神，但 LB 僅 **0.596**（gap **−0.100**）
-   - 教訓：對「同文本多 label」資料用 BCE 時，必須用 GroupKFold by text hash 才能 OOF honest
+6. **Multi-label BCE 訓練（不適合單標籤評分 task）**
+   - 原始 BCE (StratifiedKFold): OOF 0.6957, LB **0.596**, gap −0.100
+   - GroupKFold BCE（修了 multi-hot leak）: OOF 0.6902, LB **0.591**, gap **同樣 −0.099**
+   - **GroupKFold 沒救 LB** — leak 不是主因
+   - 真正原因：BCE sigmoid + normalize 後的「軟」分布在 argmax 時容易選錯，CE 的「硬」分布更適合單標籤評分
+   - 教訓：multi-label dataset 被強制單標籤 task，CE + noweight 才是正解，BCE 是死路
 
 7. **SciBERT noweight**（單模型 OOF 0.647，加 ensemble 後幾乎無 LB 增益）
 8. **DeBERTa-v3 noweight**（單模型 OOF 0.645，同上幾乎無增益）
@@ -293,10 +295,17 @@
     - 比 final_d (4 models) 還低 0.0039
     - 模型間訊號相互稀釋
 
+11. **BioBERT > SciBERT 在這個 task**
+    - v22 (final_d 把 BioBERT 換 SciBERT): LB 0.6437
+    - final_d (含 BioBERT): LB 0.6460
+    - BioBERT 的 PubMed+PMC 預訓練比 SciBERT 的 CS+Bio 更貼合本資料
+
 ### 🤔 仍待驗證
 
-1. **GroupKFold BCE**：如果修了 CV leak，BCE 是否真的能 LB 0.66+？
-2. **Title-only ensemble member**（時間允許再跑）
+1. ~~**GroupKFold BCE**~~ — 已驗證：LB 0.591，**沒救**（leak 不是 BCE 的問題）
+2. **Title-only ensemble member**（時間允許再跑，預期收益微）
+3. **Pseudo-labeling** 用 final_d 預測為偽標籤重訓
+4. **Smaller, focused ensemble**（只 PubMedBERT 系列，無 BioBERT）
 
 ### 🏔️ 當前 LB 天花板
 
