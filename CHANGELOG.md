@@ -228,11 +228,11 @@
 | 5/22 | 3 | `submission_final_a_noweight42` | 0.6524 | 0.64133 | 單模型 noweight |
 | 5/22 | 4 | `submission_final_b_pubmed_2seeds` | 0.6526 | 0.64312 | 2 seed PubMedBERT |
 | 5/22 | 5 | `submission_v14_5noweight` | 0.6600 | 0.64391 | +seed=7 反而退步 |
-| 5/23 | 1 | `submission_final_bce_only` | 0.6957 | **TBD** | 主打，BCE 單模型 |
-| 5/23 | 2 | `submission_v18_with_bce` | 0.6624 | TBD | 備案 ensemble |
-| 5/23 | 3 | TBD（視 1, 2 結果） | – | TBD | – |
-| 5/23 | 4 | 保留 | – | – | – |
-| 5/23 | 5 | 保留 | – | – | – |
+| 5/23 | 1 | `submission_final_bce_only` | 0.6957 | **0.59599** ❌ | BCE OOF 灌水 −0.100 gap |
+| 5/23 | 2 | `submission_v17_no_large` | 0.6582 | 0.64553 | 跟 final_d 同 gap，新架構 OOF honest |
+| 5/23 | 3 | `submission_v16_7models` | 0.6585 | 0.64210 | 加 large + 新架構反而 worse |
+| 5/23 | 4 | （未用，留到明天）| – | – | v18 預期 0.633 不值得燒 |
+| 5/23 | 5 | （未用，留到明天）| – | – | – |
 
 ---
 
@@ -275,23 +275,34 @@
 
 ### 🆕 已驗證效果（0523）
 
-6. **Multi-label BCE 訓練**（OOF **+0.043** 對單模型；LB 待驗證）
-   - 解放多標籤訊號是 root cause fix（class 5 F1 +0.066）
-   - 但 ensemble 收益遠不如預期（v18 僅 +0.004 OOF vs CE ensemble）
-   - 因為平均稀釋了 BCE 的獨特 bias
+6. **Multi-label BCE 訓練（OOF 灌水 trap）**
+   - 訓練時 multi-hot targets 用全 train 建構，跨 fold 共享 val labels
+   - OOF 0.6957 看似神，但 LB 僅 **0.596**（gap **−0.100**）
+   - 教訓：對「同文本多 label」資料用 BCE 時，必須用 GroupKFold by text hash 才能 OOF honest
 
-7. **SciBERT noweight**（單模型 OOF 0.647）
-   - 跟 BioBERT 同水準，主要價值在跨架構
-   - ensemble 收益 ~+0.0016 OOF（v15 vs final_d）
+7. **SciBERT noweight**（單模型 OOF 0.647，加 ensemble 後幾乎無 LB 增益）
+8. **DeBERTa-v3 noweight**（單模型 OOF 0.645，同上幾乎無增益）
 
-8. **DeBERTa-v3 noweight**（單模型 OOF 0.645）
-   - 跟其他 base 相當，但架構真的不同（disentangled attention）
-   - ensemble 收益 ~+0.0017 OOF（v16 vs v15）
+9. **新架構 ≤ PubMedBERT-large**
+   - v17 (新架構替代 large): LB 0.6455
+   - final_d (含 large): LB 0.6460
+   - 差距 0.0004，新架構無法超越 large 的醫學域適配
 
-### 🤔 待驗證（LB）
+10. **過大的 ensemble 反而退步**
+    - v16 (7 models 全包): LB 0.6421
+    - 比 final_d (4 models) 還低 0.0039
+    - 模型間訊號相互稀釋
 
-1. **BCE 單模型** vs **BCE ensemble**：哪個 LB 高？這決定整個策略
+### 🤔 仍待驗證
+
+1. **GroupKFold BCE**：如果修了 CV leak，BCE 是否真的能 LB 0.66+？
 2. **Title-only ensemble member**（時間允許再跑）
+
+### 🏔️ 當前 LB 天花板
+
+`final_d_4noweight` LB **0.64596** 似乎是 PubMedBERT-family + standard CV 的上限。要突破需要：
+- 修 BCE 的 CV leak（GroupKFold）
+- 或改用完全不同的訓練範式（pseudo-labeling, mixup, ...）
 
 ---
 

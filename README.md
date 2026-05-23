@@ -89,21 +89,23 @@ for fold in range(5):
 | 3 noweight models | + BioBERT noweight | 0.657 | 0.644 |
 | **4 noweight models + large** | **final_d** | **0.659** | **0.646** |
 | 5 noweight (final_d + seed=7) | v14 | 0.660 | 0.644 |
-| **PubMedBERT BCE single** | **multi-label BCE** | **0.696** ⭐ | **TBD** |
-| 5 CE + 1 BCE ensemble | v18 | 0.662 | TBD |
+| PubMedBERT BCE single | multi-label BCE | 0.696 | **0.596** ❌ |
+| v17_no_large (SciBERT+DeBERTa, no large) | 5-model CE | 0.658 | 0.6455 |
+| v16_7models (all CE) | 7-model CE | 0.659 | 0.6421 |
 
-**Current best (LB confirmed): `final_d_4noweight` LB 0.64596**
-**Pending validation: `final_bce_only` OOF 0.6957** (BCE multi-label single model)
+**Current best (LB confirmed): `final_d_4noweight` LB 0.64596** ★
 
 ### Phase 4 (0523) results — Multi-architecture + BCE
 
-| Single model | OOF |
-|---|---|
-| SciBERT noweight | 0.6471 |
-| DeBERTa-v3 noweight | 0.6450 |
-| **PubMedBERT BCE multi-label** | **0.6957** ⭐ |
+| Single model | OOF | LB (in ensemble) |
+|---|---|---|
+| SciBERT noweight | 0.6471 | adds ~0 LB |
+| DeBERTa-v3 noweight | 0.6450 | adds ~0 LB |
+| **PubMedBERT BCE multi-label** | **0.6957** | **0.596** (alone, OOF leak) |
 
-The multi-label BCE training is the **biggest single improvement** (+0.043 OOF over CE noweight) in the entire project so far. Adding the BCE model to a 5-model CE ensemble only added +0.004 because 5 CE models share the same class-5 under-prediction bias, diluting BCE's advantage when averaged.
+**Key 0523 finding — BCE is an OOF trap.** Multi-label BCE training uses full-train multi-hot targets, which means a row's target includes labels from sibling rows in OTHER folds. OOF rocketed to 0.6957, but LB tanked to 0.596 (gap −0.100, the worst we've seen). The BCE+ensemble (v18) was abandoned without submission given the obvious leak signature. To use BCE legitimately we'd need GroupKFold-by-text-hash to keep sibling rows in the same fold.
+
+**Architectural diversity ceiling.** SciBERT + DeBERTa-v3 noweight (LB 0.6455 in v17) and PubMedBERT-large (LB 0.6460 in final_d) are interchangeable contributors. Combining them (v16, LB 0.6421) does NOT help — bigger ensembles dilute the signal. The 4-model `final_d` configuration appears to be the ceiling of PubMedBERT-family + standard CV.
 
 ## Key lessons learned
 
