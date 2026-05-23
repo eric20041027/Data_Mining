@@ -25,14 +25,17 @@ general pathological conditions -> 5
 ├── kaggle_testset.csv                   # 1,444 abstracts (no labels)
 ├── kaggle_testset_submission.csv        # submission template
 ├── src/
-│   ├── utils.py                         # label map, CV split, metric helpers
+│   ├── utils.py                         # label map, CV split (StratifiedKFold + GroupKFold), metrics
 │   ├── eda.py                           # quick EDA
 │   ├── deep_eda.py                      # k-NN, χ², co-occurrence analysis
 │   ├── baseline_tfidf.py                # TF-IDF + LogReg 5-fold (CPU)
 │   ├── train_bert.py                    # BERT fine-tune (single-label CE)
-│   ├── train_bert_multilabel.py         # BERT fine-tune (multi-label BCE)
+│   ├── train_bert_multilabel.py         # BERT fine-tune (multi-label BCE, with GroupKFold)
 │   ├── train_bert_title_only.py         # BERT fine-tune on title only
-│   ├── ensemble_predict.py              # combine runs → submission
+│   ├── train_bert_pseudo.py             # BERT fine-tune with pseudo-labels appended
+│   ├── make_pseudo_labels.py            # Generate pseudo-labels from ensemble test probs
+│   ├── tta_predict.py                   # Test-time augmentation inference
+│   ├── ensemble_predict.py              # combine runs → submission (supports --prefer-tta)
 │   └── calibrate_and_submit.py          # per-class logit calibration (deprecated, see below)
 ├── notebooks/
 │   └── train_pubmedbert_colab.ipynb     # Colab driver notebook (A100)

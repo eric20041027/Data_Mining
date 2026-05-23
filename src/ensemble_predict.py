@@ -87,6 +87,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Disable the train/test overlap label-set constraint.",
     )
+    p.add_argument(
+        "--prefer-tta",
+        action="store_true",
+        help="If a run dir has test_probs_tta.npy, use it instead of test_probs.npy.",
+    )
     return p.parse_args()
 
 
@@ -123,9 +128,21 @@ def main() -> None:
         oof = np.zeros((len(train), NUM_CLASSES), dtype=np.float64)
         test_acc = np.zeros((len(test), NUM_CLASSES), dtype=np.float64)
         n_test_runs = 0
+        def _test_probs_for(run_dir: Path) -> np.ndarray:
+            """Read test probs, optionally preferring TTA-augmented version."""
+            tta_path = run_dir / "test_probs_tta.npy"
+            if args.prefer_tta and tta_path.exists():
+                return np.load(tta_path)
+            return np.load(run_dir / "test_probs.npy")
+
+        n_tta_used = 0
         for fold, dirs in sorted(runs_by_fold.items()):
             fold_oof = np.mean([np.load(d / "val_probs.npy") for d in dirs], axis=0)
-            fold_test = np.mean([np.load(d / "test_probs.npy") for d in dirs], axis=0)
+            fold_test_arrs = [_test_probs_for(d) for d in dirs]
+            for d in dirs:
+                if args.prefer_tta and (d / "test_probs_tta.npy").exists():
+                    n_tta_used += 1
+            fold_test = np.mean(fold_test_arrs, axis=0)
             fold_idx = train.index[train["fold"] == fold].to_numpy()
             oof[fold_idx] = fold_oof
             test_acc += fold_test
@@ -134,6 +151,8 @@ def main() -> None:
                 f"  fold {fold}: {len(dirs)} run(s), "
                 f"val macro F1 = {macro_f1(train.loc[fold_idx, 'label_idx'], fold_oof.argmax(1)):.4f}"
             )
+        if args.prefer_tta:
+            print(f"  → used TTA-augmented test_probs for {n_tta_used}/{len(resolved)} runs")
         bert_oof = oof
         bert_test = test_acc / max(n_test_runs, 1)
 

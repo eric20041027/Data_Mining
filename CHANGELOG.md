@@ -304,8 +304,38 @@
 
 1. ~~**GroupKFold BCE**~~ — 已驗證：LB 0.591，**沒救**（leak 不是 BCE 的問題）
 2. **Title-only ensemble member**（時間允許再跑，預期收益微）
-3. **Pseudo-labeling** 用 final_d 預測為偽標籤重訓
+3. ~~**Pseudo-labeling**~~ — 0524 驗證：PL 單模型 OOF 0.6556（+0.003），加進 final_d ensemble (v23) OOF 0.6586 反而 −0.0006，**沒有實質貢獻**
 4. **Smaller, focused ensemble**（只 PubMedBERT 系列，無 BioBERT）
+5. **DeBERTa-v3-large noweight**（fold 0 = 0.6648，5-fold 進行中）
+6. **TTA (Test-Time Augmentation)** 對 DeBERTa-large 模型（需 model checkpoint 在 disk，僅當 session 仍活著時可用）
+
+### Phase 5 — Day 5 (2026-05-24): Pseudo-labeling + DeBERTa-large + TTA
+
+#### EXP-022: Pseudo-labeling
+- **腳本**：[src/make_pseudo_labels.py](src/make_pseudo_labels.py) + [src/train_bert_pseudo.py](src/train_bert_pseudo.py)
+- **方法**：用 final_d 的 4 model ensemble 對 test 預測，每類取 top-80 最自信的 = 400 筆 pseudo-labels，加進 train 重訓 PubMedBERT noweight 5-fold
+- **per-class top N 動機**：直接 threshold 0.80 會產生極度不平衡的 PL（neoplasms 192, cardio 110, general 77, digestive 5, **nervous 0**），會強化模型偏見
+- **單模型 OOF**：0.6556（+0.0032 vs PubMedBERT noweight 0.6524）
+- **v23 (final_d + PL) OOF**：0.6586（**比 final_d 0.6592 還低 0.0006**）
+- **結論**：PL 對 ensemble 沒貢獻，weak class 的 PL signal 信心只有 0.55-0.65，帶噪音
+
+#### EXP-023: DeBERTa-v3-large noweight (進行中)
+- **模型**：`microsoft/deberta-v3-large`（350M）
+- **設定**：batch=8, lr=1e-5, epochs=3, max_length=512, class-weight=none
+- **fold 0**：val Macro F1 = 0.6648（19 分鐘）
+- **預估 5-fold OOF**：0.650-0.660
+- **狀態**：fold 1-4 訓練中
+
+#### EXP-024: TTA (Test-Time Augmentation)
+- **腳本**：[src/tta_predict.py](src/tta_predict.py) + ensemble_predict `--prefer-tta` 旗標
+- **方法**：對既有訓練好的模型（需 checkpoint 在 disk）做 inference，每筆 test 在 5 種 augmentation 上預測：
+  1. original（原始）
+  2. drop_sentence（隨機丟 10% 句子）
+  3. shuffle_body（打散非標題句子順序）
+  4. truncate_head（保留前 85% 字元）
+  5. truncate_tail（保留後 85% 字元）
+- **限制**：只能對「本 Colab session 訓練的」模型做 TTA，因為輕量備份不含 model weights
+- **預期增益**：+0.002-0.008 LB（per-model marginal contribution）
 
 ### 🏔️ 當前 LB 天花板
 
