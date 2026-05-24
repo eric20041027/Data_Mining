@@ -53,13 +53,20 @@ def set_seed(seed: int = SEED) -> None:
         pass
 
 
-def load_train() -> pd.DataFrame:
-    df = pd.read_csv(TRAIN_CSV)
+def load_train(csv_path: Path | str | None = None) -> pd.DataFrame:
+    """Load training data. If `csv_path` is None, uses the default TRAIN_CSV.
+    Pass an alternative path (e.g., 'outputs/kaggle_trainset_cleaned.csv') to
+    use a preprocessed version.
+    """
+    path = TRAIN_CSV if csv_path is None else Path(csv_path)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    df = pd.read_csv(path)
     df = df.dropna(subset=["label", "condition"]).reset_index(drop=True)
     df["label"] = df["label"].str.strip().str.lower()
     unknown = set(df["label"]) - set(LABEL2ID)
     if unknown:
-        raise ValueError(f"Unknown labels in trainset: {unknown}")
+        raise ValueError(f"Unknown labels in {path}: {unknown}")
     df["label_idx"] = df["label"].map(LABEL2IDX).astype(int)
     df["label_id"] = df["label"].map(LABEL2ID).astype(int)
     return df

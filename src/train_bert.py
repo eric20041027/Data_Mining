@@ -72,18 +72,21 @@ class TextDataset(Dataset):
 
 
 class WeightedTrainer(Trainer):
-    """Trainer with class-weighted cross-entropy loss."""
+    """Trainer with optional class-weighted cross-entropy + label smoothing."""
 
-    def __init__(self, *args, class_weights: torch.Tensor | None = None, **kwargs):
+    def __init__(self, *args, class_weights: torch.Tensor | None = None,
+                 label_smoothing: float = 0.0, **kwargs):
         super().__init__(*args, **kwargs)
         self.class_weights = class_weights
+        self.label_smoothing = label_smoothing
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):  # type: ignore[override]
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
         weight = None if self.class_weights is None else self.class_weights.to(logits.device)
-        loss = F.cross_entropy(logits, labels, weight=weight)
+        loss = F.cross_entropy(logits, labels, weight=weight,
+                               label_smoothing=self.label_smoothing)
         return (loss, outputs) if return_outputs else loss
 
 
@@ -117,6 +120,14 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--output-dir", default=str(OUTPUTS_DIR / "bert_runs"))
     p.add_argument("--tag", default=None, help="Run tag for naming outputs.")
     p.add_argument("--smoke", action="store_true", help="Tiny subset to test pipeline.")
+    p.add_argument(
+        "--train-csv", default=None,
+        help="Override default train CSV (e.g., outputs/kaggle_trainset_cleaned.csv)."
+    )
+    p.add_argument(
+        "--label-smoothing", type=float, default=0.0,
+        help="Label smoothing factor for CE loss (default 0 = off; try 0.05-0.1)."
+    )
     return p.parse_args()
 
 
@@ -125,8 +136,10 @@ def main() -> None:
     set_seed(args.seed)
     hf_set_seed(args.seed)
 
-    train = make_folds(load_train(), seed=SEED)
+    train = make_folds(load_train(csv_path=args.train_csv), seed=SEED)
     test = load_test()
+    if args.train_csv:
+        print(f'Loaded {len(train)} train rows from {args.train_csv}')
 
     tr = train[train["fold"] != args.fold].reset_index(drop=True)
     va = train[train["fold"] == args.fold].reset_index(drop=True)
@@ -191,6 +204,7 @@ def main() -> None:
         data_collator=DataCollatorWithPadding(tokenizer),
         compute_metrics=compute_metrics_fn,
         class_weights=class_weights,
+        label_smoothing=args.label_smoothing,
     )
 
     t0 = time.time()
