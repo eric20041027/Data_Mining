@@ -352,7 +352,7 @@ def main() -> None:
         else:
             print("\n" + "─" * 60)
             print("PRIOR ADJUSTMENT (stacked on calibration)")
-            source_prior = test_probs.mean(axis=0)
+            source_prior = np.eye(NUM_CLASSES)[test_probs.argmax(1)].mean(axis=0)  # argmax fraction
 
             NAMES = ["neoplasms", "digestive", "nervous", "cardiovascular", "general"]
             print(f"{'Class':<25} {'source':>8} {'target':>8} {'factor':>8}")
@@ -369,14 +369,14 @@ def main() -> None:
             # Calibration + Prior (best of both)
             if args.method in ("scalar", "both"):
                 # Temperature first, then prior on top of calibrated probs
-                source_cal = test_cal_probs.mean(axis=0)
+                source_cal = np.eye(NUM_CLASSES)[test_cal_probs.argmax(1)].mean(axis=0)  # argmax fraction
                 adj_cal_log = apply_prior_adjustment(test_cal_probs, source_cal, target_prior)
                 pred_temp_prior = _constrain(adj_cal_log)
                 out = write_submission(pred_temp_prior, tag=f"{args.tag}_temp_prior")
                 print(f"[temp+prior] dist={_dist(pred_temp_prior)} → {out.name}")
 
                 # OOF estimate for temp+prior
-                oof_source_cal = oof_cal_probs.mean(axis=0)
+                oof_source_cal = np.eye(NUM_CLASSES)[oof_cal_probs.argmax(1)].mean(axis=0)  # argmax fraction
                 adj_oof_cal = apply_prior_adjustment(oof_cal_probs, oof_source_cal, target_prior)
                 oof_f1_tp = macro_f1(oof_labels, adj_oof_cal.argmax(1))
                 print(f"  OOF F1 temp+prior: {oof_f1_tp:.4f}  Δ={oof_f1_tp-oof_f1_raw:+.4f}")
@@ -386,13 +386,13 @@ def main() -> None:
                 })
 
             if args.method in ("vector", "both"):
-                source_vec = test_vec_probs.mean(axis=0)
+                source_vec = np.eye(NUM_CLASSES)[test_vec_probs.argmax(1)].mean(axis=0)  # argmax fraction
                 adj_vec_log = apply_prior_adjustment(test_vec_probs, source_vec, target_prior)
                 pred_vec_prior = _constrain(adj_vec_log)
                 out = write_submission(pred_vec_prior, tag=f"{args.tag}_vec_prior")
                 print(f"[vec+prior]  dist={_dist(pred_vec_prior)} → {out.name}")
 
-                oof_source_vec = oof_vec_probs.mean(axis=0)
+                oof_source_vec = np.eye(NUM_CLASSES)[oof_vec_probs.argmax(1)].mean(axis=0)  # argmax fraction
                 adj_oof_vec = apply_prior_adjustment(oof_vec_probs, oof_source_vec, target_prior)
                 oof_f1_vp = macro_f1(oof_labels, adj_oof_vec.argmax(1))
                 print(f"  OOF F1 vec+prior:  {oof_f1_vp:.4f}  Δ={oof_f1_vp-oof_f1_raw:+.4f}")
