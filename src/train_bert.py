@@ -72,21 +72,48 @@ class TextDataset(Dataset):
 
 
 class WeightedTrainer(Trainer):
-    """Trainer with optional class-weighted cross-entropy + label smoothing."""
+    """Trainer with optional class-weighted cross-entropy / focal loss + label smoothing.
+
+    loss_type="ce"    : standard cross-entropy (default)
+    loss_type="focal" : focal loss  FL = -alpha_t * (1 - p_t)^gamma * log(p_t)
+                        where alpha_t = class_weight for the true class.
+                        gamma > 0 down-weights easy examples so the model focuses
+                        on hard cases (e.g. class 5 that keeps getting confused).
+    """
 
     def __init__(self, *args, class_weights: torch.Tensor | None = None,
-                 label_smoothing: float = 0.0, **kwargs):
+                 label_smoothing: float = 0.0,
+                 loss_type: str = "ce",
+                 focal_gamma: float = 2.0,
+                 **kwargs):
         super().__init__(*args, **kwargs)
         self.class_weights = class_weights
         self.label_smoothing = label_smoothing
+        self.loss_type = loss_type
+        self.focal_gamma = focal_gamma
 
     def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):  # type: ignore[override]
         labels = inputs.pop("labels")
         outputs = model(**inputs)
         logits = outputs.logits
         weight = None if self.class_weights is None else self.class_weights.to(logits.device)
-        loss = F.cross_entropy(logits, labels, weight=weight,
-                               label_smoothing=self.label_smoothing)
+
+        if self.loss_type == "focal":
+            # Focal loss: FL(p_t) = -alpha_t * (1 - p_t)^gamma * log(p_t)
+            # 1. Get per-sample CE loss (unreduced)
+            ce_loss = F.cross_entropy(logits, labels, weight=weight,
+                                      label_smoothing=self.label_smoothing,
+                                      reduction="none")             # (B,)
+            # 2. Compute p_t = softmax probability of true class
+            probs = F.softmax(logits.float(), dim=-1)               # (B, C)
+            p_t = probs[torch.arange(len(labels), device=logits.device), labels]  # (B,)
+            # 3. Apply focal weight (1 - p_t)^gamma
+            focal_weight = (1.0 - p_t.detach()) ** self.focal_gamma
+            loss = (focal_weight * ce_loss).mean()
+        else:
+            loss = F.cross_entropy(logits, labels, weight=weight,
+                                   label_smoothing=self.label_smoothing)
+
         return (loss, outputs) if return_outputs else loss
 
 
@@ -116,7 +143,16 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--warmup-ratio", type=float, default=0.1)
     p.add_argument("--bf16", action="store_true", default=True)
     p.add_argument("--no-bf16", dest="bf16", action="store_false")
-    p.add_argument("--class-weight", choices=["none", "balanced"], default="balanced")
+    p.add_argument("--class-weight", choices=["none", "balanced", "focal-prior"], default="balanced",
+                   help="none: no reweighting; balanced: inverse-freq; "
+                        "focal-prior: weights = target_prior / train_prior "
+                        "(corrects for model calibration bias toward dominant classes).")
+    p.add_argument("--loss", choices=["ce", "focal"], default="ce",
+                   help="Loss function: ce=cross-entropy (default), focal=focal loss.")
+    p.add_argument("--focal-gamma", type=float, default=2.0,
+                   help="Focal loss gamma (default 2.0). Higher → more focus on hard examples.")
+    p.add_argument("--save-logits", action="store_true",
+                   help="Also save raw logits (val_logits.npy, test_logits.npy) for calibration.")
     p.add_argument("--output-dir", default=str(OUTPUTS_DIR / "bert_runs"))
     p.add_argument("--tag", default=None, help="Run tag for naming outputs.")
     p.add_argument("--smoke", action="store_true", help="Tiny subset to test pipeline.")
@@ -193,7 +229,22 @@ def main() -> None:
         counts = tr["label_idx"].value_counts().sort_index().values
         weights = len(tr) / (NUM_CLASSES * counts)
         class_weights = torch.tensor(weights, dtype=torch.float32)
-        print(f"Class weights: {weights.round(3).tolist()}")
+        print(f"Class weights (balanced): {weights.round(3).tolist()}")
+    elif args.class_weight == "focal-prior":
+        # Target prior derived from train distribution (approximation):
+        # Weight each class proportionally to how much the model under-predicts it.
+        # This biases training toward the hard class (class 5 = general pathological).
+        # Empirical prior from HF data: [0.234, 0.112, 0.125, 0.209, 0.321]
+        # Train class distribution is used as source; target is the HF-derived prior.
+        TARGET_PRIOR = np.array([0.2340, 0.1124, 0.1247, 0.2093, 0.3213])  # HF test distribution (0-indexed)
+        counts = tr["label_idx"].value_counts().sort_index().values
+        train_prior = counts / counts.sum()
+        weights = TARGET_PRIOR / (train_prior + 1e-9)
+        weights = weights / weights.mean()  # normalise so average weight ≈ 1
+        class_weights = torch.tensor(weights, dtype=torch.float32)
+        print(f"Class weights (focal-prior): {weights.round(3).tolist()}")
+        print(f"  train_prior: {train_prior.round(3).tolist()}")
+        print(f"  target_prior: {TARGET_PRIOR.round(3).tolist()}")
 
     has_cuda = torch.cuda.is_available()
     targs = TrainingArguments(
@@ -227,7 +278,12 @@ def main() -> None:
         compute_metrics=compute_metrics_fn,
         class_weights=class_weights,
         label_smoothing=args.label_smoothing,
+        loss_type=args.loss,
+        focal_gamma=args.focal_gamma,
     )
+    if args.loss == "focal":
+        print(f"Using Focal Loss (gamma={args.focal_gamma}, "
+              f"class_weight={args.class_weight})")
 
     t0 = time.time()
     trainer.train()
@@ -245,6 +301,10 @@ def main() -> None:
 
     np.save(run_dir / "val_probs.npy", val_probs)
     np.save(run_dir / "test_probs.npy", test_probs)
+    if args.save_logits:
+        np.save(run_dir / "val_logits.npy", val_logits)
+        np.save(run_dir / "test_logits.npy", test_out.predictions)
+        print(f"Raw logits saved → val_logits.npy, test_logits.npy")
     va[["label_idx"]].to_csv(run_dir / "val_index.csv", index_label="row_id")
 
     metrics = {

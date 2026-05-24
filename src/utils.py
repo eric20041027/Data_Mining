@@ -14,6 +14,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT
 OUTPUTS_DIR = PROJECT_ROOT / "outputs"
 OUTPUTS_DIR.mkdir(exist_ok=True)
+SUBMISSIONS_DIR = OUTPUTS_DIR / "submissions"
+SUBMISSIONS_DIR.mkdir(exist_ok=True)
 
 TRAIN_CSV = DATA_DIR / "kaggle_trainset.csv"
 TEST_CSV = DATA_DIR / "kaggle_testset.csv"
@@ -150,6 +152,6 @@ def write_submission(pred_idx: np.ndarray, tag: str) -> Path:
     assert sub["label"].isin([1, 2, 3, 4, 5]).all(), "label contains values outside 1..5"
     assert sub["label"].isna().sum() == 0, "label contains NaN"
 
-    out_path = OUTPUTS_DIR / f"submission_{tag}.csv"
+    out_path = SUBMISSIONS_DIR / f"submission_{tag}.csv"
     sub.to_csv(out_path, index=False)
     return out_path
