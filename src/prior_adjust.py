@@ -154,7 +154,7 @@ def main() -> None:
     target_prior = get_target_prior()     # (5,) in internal 0-indexed order
 
     # Source prior = model's average softmax on test (corrects model-specific bias)
-    source_prior = np.eye(NUM_CLASSES)[test_probs_arith.argmax(1)].mean(axis=0)  # argmax fraction
+    source_prior = test_probs_arith.mean(axis=0)
 
     print("\n=== Prior Adjustment Factors ===")
     NAMES = ["neoplasms", "digestive", "nervous", "cardiovascular", "general"]
@@ -167,7 +167,7 @@ def main() -> None:
     adj_log_probs = apply_prior_adjustment(test_probs_arith, source_prior, target_prior)
 
     # Adjusted log-probs for OOF val (use per-fold source prior)
-    oof_source = np.eye(NUM_CLASSES)[oof.argmax(1)].mean(axis=0)  # argmax fraction
+    oof_source = oof.mean(axis=0)
     adj_oof_log = apply_prior_adjustment(oof, oof_source, target_prior)
     adj_oof_pred = adj_oof_log.argmax(1)
     adj_oof_f1 = macro_f1(train["label_idx"], adj_oof_pred)
@@ -215,7 +215,7 @@ def main() -> None:
         log_sum += np.log(np.clip(fp, EPS, 1.0))
     geom_probs = np.exp(log_sum / len(fold_test_probs))
     geom_probs /= geom_probs.sum(axis=1, keepdims=True)
-    geom_source = np.eye(NUM_CLASSES)[geom_probs.argmax(1)].mean(axis=0)  # argmax fraction
+    geom_source = geom_probs.mean(axis=0)
     adj_geom_log = apply_prior_adjustment(geom_probs, geom_source, target_prior)
     pred_pa_geom = _constrain(adj_geom_log)
     out = write_submission(pred_pa_geom, tag=f"{args.tag}_prior_geom")
