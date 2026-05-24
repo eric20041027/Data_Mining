@@ -17,34 +17,49 @@ general pathological conditions -> 5
 
 ```
 .
-├── Rule.md                              # competition rules
-├── plan.md                              # original strategy + EDA findings
-├── 0523Plan.md                          # day-2 detailed plan
 ├── README.md                            # this file
+├── Rule.md                              # competition rules
 ├── kaggle_trainset.csv                  # 12,994 labelled abstracts
 ├── kaggle_testset.csv                   # 1,444 abstracts (no labels)
 ├── kaggle_testset_submission.csv        # submission template
+│
+├── docs/                                # planning + analysis docs
+│   ├── plan.md                          #   original strategy + Day 1 EDA
+│   ├── 0523Plan.md                      #   Day 2 detailed plan
+│   ├── 0524Plan.md                      #   Day 3 detailed plan
+│   ├── improvePlan.md                   #   improvement ideas (dedup, R-Drop, …)
+│   ├── CHANGELOG.md                     #   full experiment log
+│   └── leaderboard_0523.csv             #   public LB snapshot
+│
 ├── src/
-│   ├── utils.py                         # label map, CV split (StratifiedKFold + GroupKFold), metrics
-│   ├── eda.py                           # quick EDA
-│   ├── deep_eda.py                      # k-NN, χ², co-occurrence analysis
-│   ├── baseline_tfidf.py                # TF-IDF + LogReg 5-fold (CPU)
-│   ├── train_bert.py                    # BERT fine-tune (single-label CE)
-│   ├── train_bert_multilabel.py         # BERT fine-tune (multi-label BCE, with GroupKFold)
-│   ├── train_bert_title_only.py         # BERT fine-tune on title only
-│   ├── train_bert_pseudo.py             # BERT fine-tune with pseudo-labels appended
-│   ├── make_pseudo_labels.py            # Generate pseudo-labels from ensemble test probs
-│   ├── tta_predict.py                   # Test-time augmentation inference
-│   ├── ensemble_predict.py              # combine runs → submission (supports --prefer-tta)
-│   └── calibrate_and_submit.py          # per-class logit calibration (deprecated, see below)
+│   ├── utils.py                         # label map, CV split, metrics
+│   ├── eda.py                           # basic EDA
+│   ├── deep_eda.py                      # k-NN, χ², co-occurrence
+│   ├── baseline_tfidf.py                # TF-IDF + LogReg baseline
+│   ├── train_bert.py                    # BERT fine-tune (CE, single-label)
+│   ├── train_bert_multilabel.py         # BCE multi-label variant + GroupKFold
+│   ├── train_bert_title_only.py         # title-only BERT variant
+│   ├── train_bert_pseudo.py             # pseudo-label augmented training
+│   ├── train_bert_sentdrop.py           # in-batch sentence dropout
+│   ├── make_pseudo_labels.py            # generate pseudo-labels from ensemble
+│   ├── tta_predict.py                   # test-time augmentation inference
+│   ├── ensemble_predict.py              # ensemble + submission writer
+│   └── calibrate_and_submit.py          # per-class logit cal (deprecated)
+│
 ├── notebooks/
-│   └── train_pubmedbert_colab.ipynb     # Colab driver notebook (A100)
+│   ├── train_pubmedbert_colab.ipynb     # Colab driver (A100)
+│   └── zero_shot_ensemble_colab.ipynb   # DeBERTa-MNLI zero-shot ensemble
+│
+├── hf_data/                             # HuggingFace dataset parquet (for analysis)
+│   ├── train-00000-of-00001.parquet
+│   └── test-00000-of-00001.parquet
+│
 └── outputs/
     ├── fold_assignment.csv              # frozen 5-fold split (seed=42)
     ├── oof_tfidf_logreg.npy             # baseline OOF probs
     ├── test_tfidf_logreg.npy            # baseline test probs
     ├── baseline_metrics.json
-    └── submissions/                     # all generated submission CSVs
+    └── submissions/                     # 40 generated submission CSVs
 ```
 
 ## Quickstart
