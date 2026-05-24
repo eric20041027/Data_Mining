@@ -128,6 +128,12 @@ def parse_args() -> argparse.Namespace:
         "--label-smoothing", type=float, default=0.0,
         help="Label smoothing factor for CE loss (default 0 = off; try 0.05-0.1)."
     )
+    p.add_argument(
+        "--overlap-weight", type=int, default=1,
+        help="Replicate train rows whose text appears in test N times "
+             "(default 1 = no replication; try 3-5 for sample upweighting). "
+             "Only train-fold rows are replicated, never val-fold rows."
+    )
     return p.parse_args()
 
 
@@ -143,6 +149,22 @@ def main() -> None:
 
     tr = train[train["fold"] != args.fold].reset_index(drop=True)
     va = train[train["fold"] == args.fold].reset_index(drop=True)
+
+    # Optional: replicate train rows whose text appears in test
+    if args.overlap_weight > 1:
+        import hashlib
+        def _md5(s: str) -> str:
+            return hashlib.md5(s.encode("utf-8")).hexdigest()
+        test_hashes = set(test["condition"].map(_md5))
+        tr_hashes = tr["condition"].map(_md5)
+        overlap_mask = tr_hashes.isin(test_hashes)
+        n_overlap = int(overlap_mask.sum())
+        if n_overlap > 0:
+            extra = pd.concat([tr[overlap_mask]] * (args.overlap_weight - 1),
+                              ignore_index=True)
+            tr = pd.concat([tr, extra], ignore_index=True)
+            print(f'Overlap weighting: {n_overlap} train rows × {args.overlap_weight} '
+                  f'(added {len(extra)}, total train rows: {len(tr)})')
 
     if args.smoke:
         tr = tr.head(64)
