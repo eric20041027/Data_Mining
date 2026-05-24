@@ -233,6 +233,34 @@
 | 5/23 | 3 | `submission_v16_7models` | 0.6585 | 0.64210 | 加 large + 新架構反而 worse |
 | 5/23 | 4 | `submission_final_bce_grouped_only` | 0.6902 | **0.59076** ❌ | GroupKFold 不是 leak 修法 |
 | 5/23 | 5 | `submission_v22_scibert_replace_biobert` | 0.6573 | 0.64373 | BioBERT > SciBERT |
+| 5/24 | 1 | `submission_v32_final_d_plus_bart_zs` | 0.6611 | 0.64310 | BART zero-shot OOF up 但 LB down |
+| 5/24 | 2 | `submission_v37_fd050_clean050` | 0.8282 | **0.61492** ❌ | Cleaned data OOF 騙人（val 較易），test 大跌 |
+| 5/24 | 3 | `submission_v40_fd095_mlm005` | 0.6586 | 0.64259 | MLM + overlap_weight，5% mix 仍微跌 |
+| 5/24 | 4-5 | (未用) | – | – | 確認 final_d 為合法天花板，停手 |
+
+## 🏆 最終結論（2026-05-24 收尾）
+
+**Best LB: `final_d_4noweight` LB 0.64596** ★ (since 0522, 不被任何後續實驗超越)
+
+3 天密集實驗總共 30 次 LB 提交，驗證所有合法路線：
+- ❌ Calibration / overlap constraint / class weight balanced
+- ❌ Multi-label BCE（CV 設計 leak + 軟分布 argmax 不準）
+- ❌ Pseudo-labeling（重複 train 信號）
+- ❌ Multi-architecture additions（SciBERT/DeBERTa-base/large）
+- ❌ TTA（test-time augmentation）
+- ❌ Zero-shot ensemble（DeBERTa-MNLI / BART-MNLI）
+- ❌ Sentence dropout (in-training augmentation)
+- ❌ Target-aware data cleaning (Rule 1+2)
+- ❌ MLM continued pretraining + overlap weighting
+- ❌ Weighted ensembles (α grid search)
+
+**唯一持續上升的關鍵改動**：
+- 移除 overlap constraint：+0.05 LB
+- 移除 class_weight balanced：+0.011 LB
+- 多 PubMedBERT-family ensemble：+0.005 LB
+- PubMedBERT-large 加入：+0.001 LB
+
+**LB 0.471 → 0.646（合法總增益 +0.175）**
 
 ---
 
