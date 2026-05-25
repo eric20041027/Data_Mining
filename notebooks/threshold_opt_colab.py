@@ -81,9 +81,8 @@ else:
 
 
 # %%
-# ========== Cell 4：Method 1 — 純 F1-threshold（直接最大化 F1）==========
-# 不用 vector scaling，直接在 raw log-probs 上優化 F1
-# 時間：約 2-3 分鐘（Differential Evolution）
+# ========== Cell 4：Method 1 — 純 F1-threshold（regularise=0.3）==========
+# regularise 0.05 → 0.3：防止 OOF overfit（上次 0.05 全部退步）
 
 FINAL_D = [
     'outputs/bert_runs/pubmedbert_noweight_seed42_fold*',
@@ -98,9 +97,9 @@ cmd = [
     'python', 'src/threshold_opt.py',
     '--bert-runs', *FINAL_D,
     '--no-overlap-constraint',
-    '--tag', 'f1opt4',
+    '--tag', 'f1opt4r03',
     '--method', 'f1',
-    '--regularise', '0.05',
+    '--regularise', '0.3',
     *prior_flag,
 ]
 
@@ -112,17 +111,16 @@ print(f'\n{"✅" if result.returncode==0 else "❌"} 完成 ({(time.time()-t0)/6
 
 
 # %%
-# ========== Cell 5：Method 2 — vec → F1（先 NLL 校準再 F1 優化）==========
-# 兩階段：先用 NLL vector scaling 校準，再用 F1-threshold 微調
-# 理論上應該是最強的組合
+# ========== Cell 5：Method 2 — vec → F1（regularise=0.3）==========
+# vec scaling 先行 + F1 微調，regularise 加大防 overfit
 
 cmd2 = [
     'python', 'src/threshold_opt.py',
     '--bert-runs', *FINAL_D,
     '--no-overlap-constraint',
-    '--tag', 'vf1opt4',
+    '--tag', 'vf1opt4r03',
     '--method', 'vec+f1',
-    '--regularise', '0.05',
+    '--regularise', '0.3',
     *prior_flag,
 ]
 
@@ -153,9 +151,10 @@ for name, path in refs:
         print(f'{name:<35}  {row}  {dist.get(5,0)/len(df)*100:>5.1f}%')
 
 print()
-new_tags = ['f1opt4_raw','f1opt4_f1opt','f1opt4_f1opt_prior',
-            'vf1opt4_raw','vf1opt4_vec','vf1opt4_f1opt','vf1opt4_f1opt_prior',
-            'vf1opt4_vec_prior']
+new_tags = [
+    'vf1opt4r03_raw', 'vf1opt4r03_vec', 'vf1opt4r03_f1opt', 'vf1opt4r03_f1opt_prior',
+    'f1opt4r03_raw',  'f1opt4r03_f1opt', 'f1opt4r03_f1opt_prior',
+]
 
 for tag in new_tags:
     path = os.path.join(SUBS_DIR, f'submission_{tag}.csv')
@@ -172,13 +171,13 @@ CACHE = os.path.join(REPO_DIR, 'outputs', 'hf_gt_cache.pkl')
 if not os.path.exists(CACHE):
     print('⚠️  hf_gt_cache.pkl missing')
 else:
-    new_subs = sorted(glob.glob(os.path.join(SUBS_DIR, 'submission_f1opt4*.csv')))
-    new_subs += sorted(glob.glob(os.path.join(SUBS_DIR, 'submission_vf1opt4*.csv')))
+    new_subs = sorted(glob.glob(os.path.join(SUBS_DIR, 'submission_f1opt4r03*.csv')))
+    new_subs += sorted(glob.glob(os.path.join(SUBS_DIR, 'submission_vf1opt4r03*.csv')))
     if os.path.exists(cal_path): new_subs.append(cal_path)
     if os.path.exists(fd_path):  new_subs.append(fd_path)
 
     print(f'Estimating LB for {len(new_subs)} submissions...\n')
-    subprocess.run(['python', 'src/estimate_lb.py', '--quiet'] + new_subs, cwd=REPO_DIR)
+    subprocess.run(['python', 'src/estimate_lb.py'] + new_subs, cwd=REPO_DIR)
 
 
 # %%
@@ -188,11 +187,11 @@ SUBS_DIR = os.path.join(REPO_DIR, 'outputs', 'submissions')
 
 # 優先下載 F1-opt 結果
 priority = [
-    'vf1opt4_f1opt_prior',   # vec + F1-opt + prior（最強組合）
-    'vf1opt4_f1opt',         # vec + F1-opt
-    'f1opt4_f1opt_prior',    # 純 F1-opt + prior
-    'f1opt4_f1opt',          # 純 F1-opt
-    'vf1opt4_vec_prior',     # vec + prior（對照）
+    'vf1opt4r03_f1opt_prior',  # vec + F1-opt(r=0.3) + prior
+    'vf1opt4r03_f1opt',        # vec + F1-opt(r=0.3)
+    'f1opt4r03_f1opt_prior',   # 純 F1-opt(r=0.3) + prior
+    'f1opt4r03_f1opt',         # 純 F1-opt(r=0.3)
+    'vf1opt4r03_vec_prior',    # vec + prior（對照，應與 cal4_vec_prior 相同）
 ]
 
 downloaded = 0
