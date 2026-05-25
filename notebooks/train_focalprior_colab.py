@@ -133,15 +133,6 @@ for fold in range(5):
         fold_f1s.append(f1)
         print(f'  Val Macro F1: {f1:.4f}')
 
-    # 讀取 val F1
-    run_dir = os.path.join(REPO_DIR, 'outputs', 'bert_runs', f'{TAG}_fold{fold}')
-    metrics_path = os.path.join(run_dir, 'metrics.json')
-    if os.path.exists(metrics_path):
-        m = json.load(open(metrics_path))
-        f1 = m.get('val_macro_f1', 0)
-        fold_f1s.append(f1)
-        print(f'  Val Macro F1: {f1:.4f}')
-
 total_min = (time.time() - t0_total) / 60
 print(f'\n{"="*60}')
 print(f'Strategy C 訓練完成（{total_min:.1f} min）')
