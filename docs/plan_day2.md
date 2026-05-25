@@ -195,7 +195,7 @@ elif 兩個新架構都沒幫助（LB ≤ v14 + 0.001）:
 1. 跑 final backup：`predictions_only_FINAL_0523.tar.gz` 上 Drive
 2. 把所有 submission 下載到本機 `outputs/`
 3. Kaggle UI 確認 Selected = 公開 LB 最高 + 私下覺得最穩
-4. 把 0523 結果更新到 README / plan.md
+4. 把 0523 結果更新到 README / plan_day1.md
 
 ## 收尾範例 Kaggle Selected 策略
 

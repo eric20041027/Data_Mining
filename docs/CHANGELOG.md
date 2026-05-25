@@ -57,7 +57,7 @@
 - **方法**：對 OOF 做 coordinate descent grid search 找 5-dim logit bias 使 OOF Macro F1 最大
 - **發現的 bias**：[-0.89, -1.04, -0.80, -0.48, 0.00] → 等同「降低 class 5 預測門檻」
 - **OOF 提升**：0.6402 → 0.6503 (+0.0101)
-- **檔案**：[src/calibrate_and_submit.py](src/calibrate_and_submit.py)
+- **檔案**：`src/calibrate_and_submit.py` (**已刪除 — 已棄用**)
 
 #### EXP-005: First submission — v2 (calibration + overlap constraint)
 - **設定**：EXP-003 + EXP-004 校正 + overlap-set 限制
@@ -397,20 +397,20 @@
 | 檔案 | 用途 |
 |---|---|
 | [src/ensemble_predict.py](src/ensemble_predict.py) | 多模型 ensemble，支援 `--no-overlap-constraint` |
-| [src/calibrate_and_submit.py](src/calibrate_and_submit.py) | Per-class logit calibration（**已棄用**，會 overfit） |
+| ~~`src/calibrate_and_submit.py`~~ | Per-class logit calibration（**已刪除** — 會 overfit，由 `calibrate.py` 取代） |
 
 ### Notebook
 
 | 檔案 | 用途 |
 |---|---|
-| [notebooks/train_pubmedbert_colab.ipynb](notebooks/train_pubmedbert_colab.ipynb) | Colab driver（過時 — 用 0523Plan.md 內的 cell） |
+| [notebooks/train_pubmedbert_colab.ipynb](notebooks/train_pubmedbert_colab.ipynb) | Colab driver（過時 — 用 `train_and_calibrate_colab.py`） |
 
 ### 規劃
 
 | 檔案 | 用途 |
 |---|---|
-| [plan.md](plan.md) | Day 1 初版策略 + EDA |
-| [0523Plan.md](0523Plan.md) | Day 4 詳細執行計劃 |
+| [plan_day1.md](plan_day1.md) | Day 1 初版策略 + EDA |
+| [plan_day2.md](plan_day2.md) | Day 4 詳細執行計劃 |
 | [CHANGELOG.md](CHANGELOG.md) | 本檔案 |
 | [README.md](README.md) | 專案總覽 |
 

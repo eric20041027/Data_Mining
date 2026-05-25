@@ -48,12 +48,12 @@ general pathological conditions -> 5
 ├── kaggle_testset_submission.csv        # submission template
 │
 ├── docs/                                # planning + analysis docs
-│   ├── plan.md                          #   original strategy + Day 1 EDA
-│   ├── 0523Plan.md                      #   Day 2 detailed plan
-│   ├── 0524Plan.md                      #   Day 3 detailed plan
-│   ├── improvePlan.md                   #   improvement ideas (dedup, R-Drop, …)
-│   ├── fix_plan_v2.md                   #   post-0524 calibration + F1-opt plan
-│   ├── CHANGELOG.md                     #   full experiment log (Phase 0–5)
+│   ├── plan_day1.md                     #   original strategy + Day 1 EDA
+│   ├── plan_day2.md                     #   Day 2 detailed plan
+│   ├── plan_day3.md                     #   Day 3 detailed plan
+│   ├── plan_improvement.md              #   improvement ideas (dedup, R-Drop, …)
+│   ├── plan_phase6.md                   #   Phase 6 calibration + F1-opt plan
+│   ├── CHANGELOG.md                     #   full experiment log (Phase 0–6)
 │   ├── competition_report.md            #   final competition technical report
 │   └── leaderboard_0523.csv             #   public LB snapshot
 │
@@ -75,18 +75,15 @@ general pathological conditions -> 5
 │   ├── prior_adjust.py                  # prior distribution adjustment
 │   ├── threshold_opt.py                 # F1-threshold optimisation (Differential Evolution)
 │   ├── estimate_lb.py                   # LB estimator (proxy F1 → est LB)
-│   └── calibrate_and_submit.py          # per-class logit cal (deprecated)
 │
 ├── notebooks/
 │   ├── train_pubmedbert_colab.ipynb     # Colab driver (A100, legacy)
+│   ├── train_scibert_colab.ipynb        # Colab: SciBERT training experiments
 │   ├── zero_shot_ensemble_colab.ipynb   # DeBERTa-MNLI zero-shot ensemble
-│   ├── calibrate_colab.py               # Colab: run calibrate.py on saved predictions
-│   ├── prior_adjust_colab.py            # Colab: run prior_adjust.py
-│   ├── ensemble_agg_colab.py            # Colab: run ensemble_agg.py
-│   ├── improve_colab.py                 # Colab: calibration + focal loss training (v1)
-│   ├── improve_colab_v2.py              # Colab: calibration + focal loss training (v2, stable)
+│   ├── train_and_calibrate_colab.py     # Colab: training + calibration full pipeline ★
 │   ├── threshold_opt_colab.py           # Colab: F1-threshold optimisation
-│   └── train_focal_colab.py             # Colab: focal loss dedicated training script
+│   ├── train_focal_colab.py             # Colab: focal loss training (standalone)
+│   └── ensemble_agg_colab.py            # Colab: weighted ensemble aggregation
 │
 ├── hf_data/                             # HuggingFace dataset parquet (for GT cache)
 │   ├── train-00000-of-00001.parquet
@@ -119,7 +116,7 @@ python3 src/baseline_tfidf.py
 %cd Data_Mining
 
 # Train 4-model ensemble (PubMedBERT×2 seeds + BioBERT + PubMedBERT-large)
-# See notebooks/improve_colab_v2.py for full script
+# See notebooks/train_and_calibrate_colab.py for full script
 
 # Ensemble + submission
 !python src/ensemble_predict.py \

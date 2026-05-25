@@ -336,11 +336,10 @@ def evaluate(submission_path, gt, verbose=True):
 | 腳本 | 功能 | 狀態 |
 |---|---|---|
 | `train_pubmedbert_colab.ipynb` | 早期訓練 driver | Legacy |
-| `calibrate_colab.py` | calibrate.py Phase 6 初版 | 已替代 |
-| `prior_adjust_colab.py` | 先行 prior adjustment | 已整合到 calibrate.py |
+| `train_scibert_colab.ipynb` | SciBERT 訓練實驗 | Legacy |
+| `zero_shot_ensemble_colab.ipynb` | DeBERTa-MNLI zero-shot ensemble | Legacy |
 | `ensemble_agg_colab.py` | weighted ensemble 實驗 | 備用 |
-| `improve_colab.py` | calibration + focal loss 第一版 | Bug（用 git pull） |
-| **`improve_colab_v2.py`** | **calibration + focal loss 穩定版** | **推薦使用** |
+| **`train_and_calibrate_colab.py`** | **訓練 + 校準完整流程** | **推薦使用** |
 | **`threshold_opt_colab.py`** | **F1 threshold 優化** | **當前版本** |
 | `train_focal_colab.py` | focal loss 獨立訓練 | 備用 |
 

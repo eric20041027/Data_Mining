@@ -1,5 +1,5 @@
 # ============================================================
-# 完整改進腳本 v2（修正版）
+# train_and_calibrate_colab.py — 訓練 + 校準完整流程
 #
 # 修正了：
 #   1. submission 輸出路徑：outputs/submissions/（已 git push 修正）
