@@ -82,46 +82,56 @@ else:
 
 
 # %%
-# ========== Cell 4：Strategy C 訓練（CE + focal-prior weights）==========
-# 與 Strategy A 的差異：--loss ce（不加 focal loss），只保留 --class-weight focal-prior
-# Strategy A：--loss focal --class-weight focal-prior  → 雙重懲罰，Δ = −0.0085
-# Strategy C：--loss ce   --class-weight focal-prior  → 單一輕微上調
+# ========== Cell 4：診斷 + Strategy C 訓練（CE + focal-prior weights）==========
 
 MODEL = 'microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext'
 TAG   = 'pubmedbert_focalprior_seed42'
 
+# --- 診斷：確認 train_bert.py 支援 --loss 參數 ---
+print('=== 診斷：train_bert.py --help ===')
+diag = os.system(f'cd {REPO_DIR} && python src/train_bert.py --help 2>&1 | grep -E "loss|class.weight|focal"')
+if diag != 0:
+    print('⚠ train_bert.py 可能不支援 --loss，請確認已執行 git reset --hard origin/main')
+
+print('\n=== 開始訓練 ===')
 fold_f1s = []
 t0_total = time.time()
 
 for fold in range(5):
     print(f'\n{"="*60}')
     print(f'  Fold {fold}/4')
-    print(f'{"="*60}')
+    print(f'{"="*60}', flush=True)
     t0 = time.time()
 
-    cmd = [
-        'python', 'src/train_bert.py',
-        '--model', MODEL,
-        '--fold', str(fold),
-        '--seed', '42',
-        '--epochs', '4',
-        '--batch-size', '32',
-        '--lr', '2e-5',
-        '--max-length', '512',
-        '--loss', 'ce',                   # CE（非 focal）
-        '--class-weight', 'focal-prior',   # focal-prior weights 單獨使用
-        '--tag', f'{TAG}_fold{fold}',
-    ]
-    result = subprocess.run(cmd, cwd=REPO_DIR, capture_output=True, text=True)
+    # os.system 直接串流輸出到 notebook，錯誤訊息一定可見
+    cmd_str = (
+        f'cd {REPO_DIR} && python src/train_bert.py'
+        f' --model {MODEL}'
+        f' --fold {fold}'
+        f' --seed 42'
+        f' --epochs 4'
+        f' --batch-size 32'
+        f' --lr 2e-5'
+        f' --max-length 512'
+        f' --loss ce'
+        f' --class-weight focal-prior'
+        f' --tag {TAG}_fold{fold}'
+    )
+    ret = os.system(cmd_str)
 
     elapsed = (time.time() - t0) / 60
-    status = '✅' if result.returncode == 0 else '❌'
-    print(result.stdout[-3000:] if result.stdout else '')
-    if result.returncode != 0:
-        print('--- STDERR ---')
-        print(result.stderr[-2000:])
-        print('-' * 40)
-    print(f'{status} Fold {fold} done ({elapsed:.1f} min)')
+    status = '✅' if ret == 0 else f'❌ (exit code {ret})'
+    print(f'\n{status} Fold {fold} done ({elapsed:.1f} min)', flush=True)
+    if ret != 0:
+        print('⚠ 訓練失敗，請把上面的錯誤訊息截圖/複製回報')
+        break
+
+    metrics_path = os.path.join(REPO_DIR, 'outputs', 'bert_runs', f'{TAG}_fold{fold}', 'metrics.json')
+    if os.path.exists(metrics_path):
+        m = json.load(open(metrics_path))
+        f1 = m.get('val_macro_f1', 0)
+        fold_f1s.append(f1)
+        print(f'  Val Macro F1: {f1:.4f}')
 
     # 讀取 val F1
     run_dir = os.path.join(REPO_DIR, 'outputs', 'bert_runs', f'{TAG}_fold{fold}')
