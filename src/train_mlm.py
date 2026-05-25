@@ -98,7 +98,7 @@ def main() -> None:
 
     ds = TextOnlyDataset(texts, tokenizer, args.max_length)
     collator = DataCollatorForLanguageModeling(
-        tokenizer=tokenizer, mlm_probability=args.mlm_prob
+        processing_class=tokenizer, mlm_probability=args.mlm_prob
     )
 
     root = Path(__file__).resolve().parent.parent
@@ -126,7 +126,7 @@ def main() -> None:
         args=targs,
         train_dataset=ds,
         data_collator=collator,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
     )
 
     trainer.train()

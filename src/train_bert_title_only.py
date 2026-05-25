@@ -190,7 +190,7 @@ def main() -> None:
         args=targs,
         train_dataset=train_ds,
         eval_dataset=val_ds,
-        tokenizer=tokenizer,
+        processing_class=tokenizer,
         data_collator=DataCollatorWithPadding(tokenizer),
         compute_metrics=compute_metrics_fn,
         class_weights=class_weights,
