@@ -31,7 +31,7 @@ import re
 src = open('src/train_bert.py').read()
 checks = {
     'focal-prior weight':  'focal-prior' in src,
-    '--loss ce':           "'ce'" in src,
+    '--loss {ce,focal}':   'choices=["ce"' in src or "choices=['ce'" in src,
     '--class-weight':      'class-weight' in src,
     'SUBMISSIONS_DIR':     'SUBMISSIONS_DIR' in open('src/utils.py').read(),
 }
