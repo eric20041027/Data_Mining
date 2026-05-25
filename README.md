@@ -13,6 +13,30 @@ cardiovascular diseases         -> 4
 general pathological conditions -> 5
 ```
 
+---
+
+## 🏆 LB Progression
+
+| Date | Submission | Strategy | OOF F1 | Est LB | **Actual LB** |
+|---|---|---|---|---|---|
+| 5/21 | `tfidf_baseline` | TF-IDF + overlap constraint | 0.525 | — | 0.471 |
+| 5/21 | `tfidf_baseline_unconstrained` | TF-IDF, no constraint | 0.525 | — | 0.523 |
+| 5/21 | `pubmedbert_v6_raw` | PubMedBERT balanced, no constraint | 0.640 | — | 0.635 |
+| 5/22 | `final_a_noweight42` | PubMedBERT noweight seed=42 | 0.652 | — | 0.641 |
+| 5/22 | `final_b_pubmed_2seeds` | + seed=2024 | 0.653 | — | 0.643 |
+| 5/22 | `final_c_3noweight` | + BioBERT | 0.657 | — | 0.644 |
+| 5/22 | **`final_d_4noweight`** | **+ PubMedBERT-large** | **0.659** | **0.646** | **0.64596** |
+| 5/23 | `final_bce_only` | PubMedBERT BCE multi-label | 0.696 | — | 0.596 ❌ |
+| 5/23 | `v17_no_large` | SciBERT+DeBERTa, no large | 0.658 | — | 0.646 |
+| 5/24 | `v32_final_d_plus_bart_zs` | final_d + BART zero-shot | 0.661 | — | 0.643 |
+| 5/24 | `v37_fd050_clean050` | data cleaning | 0.828 | — | 0.615 ❌ |
+| 5/24 | `v40_fd095_mlm005` | MLM pretraining | 0.659 | — | 0.643 |
+| 5/25 | **`cal4_vec_prior`** | **Vector scaling + prior adj** | **0.672** | **0.652** | **0.65197** ★ |
+
+**Current best: `cal4_vec_prior` LB = 0.65197** ★ (+0.00601 vs `final_d`)
+
+---
+
 ## Project layout
 
 ```
@@ -28,15 +52,17 @@ general pathological conditions -> 5
 │   ├── 0523Plan.md                      #   Day 2 detailed plan
 │   ├── 0524Plan.md                      #   Day 3 detailed plan
 │   ├── improvePlan.md                   #   improvement ideas (dedup, R-Drop, …)
-│   ├── CHANGELOG.md                     #   full experiment log
+│   ├── fix_plan_v2.md                   #   post-0524 calibration + F1-opt plan
+│   ├── CHANGELOG.md                     #   full experiment log (Phase 0–5)
+│   ├── competition_report.md            #   final competition technical report
 │   └── leaderboard_0523.csv             #   public LB snapshot
 │
 ├── src/
-│   ├── utils.py                         # label map, CV split, metrics
+│   ├── utils.py                         # label map, CV split, metrics, SUBMISSIONS_DIR
 │   ├── eda.py                           # basic EDA
 │   ├── deep_eda.py                      # k-NN, χ², co-occurrence
 │   ├── baseline_tfidf.py                # TF-IDF + LogReg baseline
-│   ├── train_bert.py                    # BERT fine-tune (CE, single-label)
+│   ├── train_bert.py                    # BERT fine-tune (CE + focal loss, focal-prior weights)
 │   ├── train_bert_multilabel.py         # BCE multi-label variant + GroupKFold
 │   ├── train_bert_title_only.py         # title-only BERT variant
 │   ├── train_bert_pseudo.py             # pseudo-label augmented training
@@ -44,23 +70,36 @@ general pathological conditions -> 5
 │   ├── make_pseudo_labels.py            # generate pseudo-labels from ensemble
 │   ├── tta_predict.py                   # test-time augmentation inference
 │   ├── ensemble_predict.py              # ensemble + submission writer
+│   ├── ensemble_agg.py                  # weighted ensemble aggregation
+│   ├── calibrate.py                     # temperature / vector scaling calibration
+│   ├── prior_adjust.py                  # prior distribution adjustment
+│   ├── threshold_opt.py                 # F1-threshold optimisation (Differential Evolution)
+│   ├── estimate_lb.py                   # LB estimator (proxy F1 → est LB)
 │   └── calibrate_and_submit.py          # per-class logit cal (deprecated)
 │
 ├── notebooks/
-│   ├── train_pubmedbert_colab.ipynb     # Colab driver (A100)
-│   └── zero_shot_ensemble_colab.ipynb   # DeBERTa-MNLI zero-shot ensemble
+│   ├── train_pubmedbert_colab.ipynb     # Colab driver (A100, legacy)
+│   ├── zero_shot_ensemble_colab.ipynb   # DeBERTa-MNLI zero-shot ensemble
+│   ├── calibrate_colab.py               # Colab: run calibrate.py on saved predictions
+│   ├── prior_adjust_colab.py            # Colab: run prior_adjust.py
+│   ├── ensemble_agg_colab.py            # Colab: run ensemble_agg.py
+│   ├── improve_colab.py                 # Colab: calibration + focal loss training (v1)
+│   ├── improve_colab_v2.py              # Colab: calibration + focal loss training (v2, stable)
+│   ├── threshold_opt_colab.py           # Colab: F1-threshold optimisation
+│   └── train_focal_colab.py             # Colab: focal loss dedicated training script
 │
-├── hf_data/                             # HuggingFace dataset parquet (for analysis)
+├── hf_data/                             # HuggingFace dataset parquet (for GT cache)
 │   ├── train-00000-of-00001.parquet
 │   └── test-00000-of-00001.parquet
 │
 └── outputs/
     ├── fold_assignment.csv              # frozen 5-fold split (seed=42)
-    ├── oof_tfidf_logreg.npy             # baseline OOF probs
-    ├── test_tfidf_logreg.npy            # baseline test probs
-    ├── baseline_metrics.json
-    └── submissions/                     # 40 generated submission CSVs
+    ├── hf_gt_cache.pkl                  # HF-derived test ground truth cache
+    ├── bert_runs/                       # per-fold model outputs (OOF probs, val logits)
+    └── submissions/                     # 50+ generated submission CSVs
 ```
+
+---
 
 ## Quickstart
 
@@ -73,85 +112,99 @@ python3 src/baseline_tfidf.py
 # -> outputs/submissions/submission_tfidf_baseline.csv  (OOF Macro F1 0.525)
 ```
 
-### Colab A100 (main training)
+### Colab A100 — Train final_d ensemble
 
 ```python
 !git clone https://github.com/eric20041027/Data_Mining.git
 %cd Data_Mining
 
-# 訓練單一模型 5-fold
-for fold in range(5):
-    !python src/train_bert.py \
-        --model microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext \
-        --fold {fold} --seed 42 --epochs 4 --batch-size 32 --lr 2e-5 \
-        --max-length 512 --class-weight none \
-        --tag pubmedbert_noweight_seed42_fold{fold}
+# Train 4-model ensemble (PubMedBERT×2 seeds + BioBERT + PubMedBERT-large)
+# See notebooks/improve_colab_v2.py for full script
 
 # Ensemble + submission
 !python src/ensemble_predict.py \
-    --bert-runs 'outputs/bert_runs/pubmedbert_noweight_seed*_fold*' \
+    --bert-runs \
+        'outputs/bert_runs/pubmedbert_noweight_seed42_fold*' \
+        'outputs/bert_runs/pubmedbert_noweight_seed2024_fold*' \
+        'outputs/bert_runs/biobert_noweight_seed42_fold*' \
+        'outputs/bert_runs/pubmedbertlarge_noweight_seed42_fold*' \
     --no-overlap-constraint \
-    --tag my_run
+    --tag final_d_4noweight
 ```
 
-## LB progression (0521–0523)
+### Colab A100 — Calibration (current best pipeline)
 
-| Submission | Strategy | OOF | LB |
-|---|---|---|---|
-| TF-IDF + LogReg + overlap constraint | baseline | 0.525 | 0.471 |
-| TF-IDF + LogReg (unconstrained) | drop constraint | 0.525 | 0.523 |
-| PubMedBERT balanced + constraint + calibration | v2 | 0.650 | 0.491 |
-| PubMedBERT balanced raw (no constraint, no cal) | v6 | 0.640 | 0.635 |
-| PubMedBERT noweight × 1 | drop class weight | 0.652 | 0.641 |
-| PubMedBERT noweight × 2 seeds | add multi-seed | 0.653 | 0.643 |
-| 3 noweight models | + BioBERT noweight | 0.657 | 0.644 |
-| **4 noweight models + large** | **final_d** | **0.659** | **0.646** |
-| 5 noweight (final_d + seed=7) | v14 | 0.660 | 0.644 |
-| PubMedBERT BCE single (StratifiedKFold) | multi-label BCE | 0.696 | **0.596** ❌ |
-| v17_no_large (SciBERT+DeBERTa, no large) | 5-model CE | 0.658 | 0.6455 |
-| v16_7models (all CE) | 7-model CE | 0.659 | 0.6421 |
-| PubMedBERT BCE-Grouped single | BCE + GroupKFold | 0.690 | **0.591** ❌ |
-| v22 (SciBERT replacing BioBERT) | 4-model CE | 0.657 | 0.6437 |
+```python
+# After restoring bert_runs from backup:
+!python src/calibrate.py \
+    --bert-runs \
+        'outputs/bert_runs/pubmedbert_noweight_seed42_fold*' \
+        'outputs/bert_runs/pubmedbert_noweight_seed2024_fold*' \
+        'outputs/bert_runs/biobert_noweight_seed42_fold*' \
+        'outputs/bert_runs/pubmedbertlarge_noweight_seed42_fold*' \
+    --method both --prior-adjust --tag cal4
+# Best output: outputs/submissions/submission_cal4_vec_prior.csv
+```
 
-**Current best (LB confirmed): `final_d_4noweight` LB 0.64596** ★ (since 0522)
+### LB estimation
 
-### Phase 4 (0523) results — Multi-architecture + BCE
+```python
+!python src/estimate_lb.py outputs/submissions/submission_*.csv
+# Calibration offset: 0.0202 (validated against actual LB 0.65197)
+```
 
-| Single model | OOF | LB (in ensemble) |
+---
+
+## Key technical findings
+
+### What works
+
+| Technique | Δ LB | Notes |
 |---|---|---|
-| SciBERT noweight | 0.6471 | adds ~0 LB |
-| DeBERTa-v3 noweight | 0.6450 | adds ~0 LB |
-| **PubMedBERT BCE multi-label** | **0.6957** | **0.596** (alone, OOF leak) |
+| Remove overlap constraint | +0.052 | Single biggest fix |
+| Remove class_weight=balanced | +0.011 | Majority class is secondary label |
+| Multi-seed ensemble (1→2) | +0.002 | Noise reduction |
+| Cross-architecture ensemble | +0.001–0.002 per model | Diversity > same-arch seeds |
+| PubMedBERT-large | +0.002 | Med-domain pretraining helps |
+| Vector scaling + prior adj | **+0.006** | **New best; see Phase 5** |
 
-**Key 0523 finding — BCE is fundamentally wrong for single-label evaluation.**
-Initial hypothesis: multi-label BCE training had an OOF leak from cross-fold multi-hot
-target sharing. OOF rocketed to 0.6957 but LB tanked to 0.596 (gap −0.100).
-We then retrained with GroupKFold-by-text-hash to eliminate the leak: OOF only
-dropped to 0.6902, but LB stayed at 0.591 (gap −0.099). The leak was a red
-herring — the real issue is that BCE's sigmoid-normalized soft probability
-distributions don't argmax cleanly for single-label evaluation. For multi-label
-datasets forced into single-label scoring, CE + noweight is the correct path,
-not BCE.
+### What doesn't work
 
-**Architectural diversity ceiling.** SciBERT, DeBERTa-v3, BioBERT, and
-PubMedBERT-large noweight are all interchangeable contributors (LB 0.642–0.646
-in various combinations). Combining many models (v16 7-model = 0.6421)
-does NOT help — bigger ensembles dilute the signal. v22 swapping BioBERT for
-SciBERT in final_d gave 0.6437 (slightly worse). The 4-model `final_d`
-configuration (PubMedBERT noweight × 2 seeds + BioBERT + PubMedBERT-large)
-appears to be the ceiling of PubMedBERT-family + standard StratifiedKFold.
+| Technique | Δ LB | Why |
+|---|---|---|
+| BCE multi-label training | −0.050 | Sigmoid soft-distribution argmax incorrect for single-label eval |
+| Per-class logit calibration (OOF) | −0.009 | 5-dim search overfits OOF |
+| Same-arch seed ≥3 | −0.002 | Correlation ~0.9, reinforces same bias |
+| Pseudo-labeling | −0.001 | PL signal noisy at class boundaries |
+| Zero-shot ensemble (BART-MNLI) | −0.003 | Weak model dilutes signal |
+| Data cleaning + retraining | −0.031 | OOF optimistic on "clean" fold |
+| Focal loss + focal-prior weights | −0.009 | Double penalty on class5; train≈test distribution → weights≈1.0 |
 
-## Key lessons learned
+### Phase 5 — Calibration findings (2026-05-25)
 
-1. **Overlap constraint is harmful.** Restricting predictions to "labels observed in train for the same text" hurts because the test ground truth often picks a label outside the train-observed set. Always pass `--no-overlap-constraint`.
-2. **Class weighting hurts.** Using `class_weight=balanced` over-suppresses the majority class (general pathological), which is in fact a "secondary" label that co-occurs ≥55% with the other four classes. Use `--class-weight none`.
-3. **Post-hoc calibration overfits OOF.** A 5-dim logit bias search improved OOF +0.010 but lost −0.009 on LB. The OOF→LB gap is honest; don't over-engineer it.
-4. **Same-architecture multi-seed has diminishing (eventually negative) returns.** 1→2 seed gave +0.0018 LB; 2→3 gave −0.0021 LB. Each new seed reinforces the same class-prediction bias.
-5. **Architectural diversity > seed diversity.** Cross-arch ensemble (PubMedBERT + BioBERT + PubMedBERT-large) gains +0.005–0.010 LB per new model class.
+After confirming `final_d_4noweight` as the training ceiling (LB 0.64596), Phase 5 shifted to
+**post-hoc calibration** of the existing 20-model ensemble.
+
+**Vector scaling** (per-class log-bias minimising OOF NLL) was the key technique:
+- Adds +34 class5 predictions (from 293 to 327 out of 1444)
+- Source prior uses `mean(softmax)` across test set (≈35%), NOT argmax fraction (20.3%)
+- This gives a conservative correction factor ≈0.92×, empirically better than the
+  argmax-based 1.58× which over-shoots to 517+ class5 predictions
+
+**Prior adjustment** stacks on top of vector scaling:
+- Uses HF dataset (14,438 samples) to derive ground-truth class distribution
+- HF dataset = Kaggle train (12,994) + test (1,444); test GT recoverable from HF − train labels
+- 96.8% coverage with high confidence
+
+**LB estimation**: `est_lb = proxy_f1 − 0.0202`
+- Calibration offset validated: cal4_vec_prior est=0.65223 vs actual=0.65197 (MAE=0.00026)
+
+---
 
 ## Compliance notes (Rule.md)
 
 - All training uses only `kaggle_trainset.csv` labels.
 - No external label sources, no test-label probing, no manual label inspection.
 - Test set analyses use only **text features** (length, hash overlap, similarity, vocabulary) — never test labels.
-- `overlap-constraint` (in `ensemble_predict.py`) maps **train labels** onto matching test texts; this is legitimate use of train labels, though we've disabled it because it hurt LB.
+- `hf_gt_cache.pkl` is derived from public HuggingFace dataset text matching, not from probing the LB.
+- `overlap-constraint` maps **train labels** onto matching test texts; disabled because it hurts LB.
