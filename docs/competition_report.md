@@ -171,7 +171,7 @@
 
 ---
 
-### Phase 6 — Day 6（2026-05-25）：Calibration + F1 Threshold Optimisation
+### Phase 6 — Day 6（2026-05-25）：Calibration + F1 Threshold Optimisation + Strategy C
 
 這是最終也是最成功的改進方向。
 
@@ -233,14 +233,36 @@ HuggingFace 資料集（14,438 筆）= Kaggle train（12,994）+ Kaggle test（1
 | `cal4_prior` | 314 | 0.6695 | 0.649 | — |
 | `cal4_vec_prior` | **314** | **0.6724** | **0.652** | **0.65197** ★ |
 
-#### 6.5 Focal Loss 嘗試
+#### 6.5 F1-Threshold Optimisation 結果
 
-**策略 A**：`--loss focal --class-weight focal-prior`
-- focal-prior weights = `TARGET_PRIOR / train_prior`（類似反向頻率加權）
-- 結果：5-fold avg val F1 = 0.6466（**Δ = −0.0085**）
-- 失敗原因：
-  1. Train 分布 ≈ Test 分布 → focal-prior weights ≈ 1.0（幾乎無效）
-  2. Focal loss 本身 + focal-prior weights 雙重懲罰 class5 → 適得其反
+直接最大化 OOF Macro F1（`threshold_opt.py`）：
+
+| 方法 | Regularize | Est LB | vs cal4_vec_prior |
+|---|---|---|---|
+| `f1opt4_f1opt` | 0.05 | 退步 | −0.005 以上 |
+| `vf1opt4_f1opt_prior` | 0.05 | 退步 | −0.005 以上 |
+| `f1opt4r03_f1opt` | **0.3** | 0.64773 | **−0.00424** |
+| `f1opt4r03_f1opt_prior` | **0.3** | 0.64858 | **−0.00339** |
+| `vf1opt4r03_f1opt` | **0.3** | 0.64898 | **−0.00299** |
+| `vf1opt4r03_f1opt_prior` | **0.3** | 0.65100 | **−0.00097** |
+| `vf1opt4r03_vec_prior` | — | **0.65223** | ≈ 0（等於 cal4_vec_prior） |
+
+**結論**：F1-threshold optimization 在所有 regularize 強度下均無法超越 vector scaling baseline。
+`vf1opt4r03_vec_prior` 與 `cal4_vec_prior` 完全等價（確認 vec scaling 是天花板）。
+OOF overfit 在這個問題上無法靠 regularize 解決，已放棄此方向。
+
+#### 6.6 Strategy C：CE + Focal-Prior Class Weights
+
+**策略 A**（focal loss + focal-prior）：已在 Phase 5 確認失敗（Δ = −0.0085）
+
+**策略 C**：`--loss ce --class-weight focal-prior`（移除 focal loss，只保留 focal-prior weights）
+
+- focal-prior weights = `TARGET_PRIOR / train_prior`（歸一化使平均值 ≈ 1）
+- class5 weight：32.1% / 30.4% ≈ 1.06×（輕微上調）
+- 結果：5-fold avg val F1 = **0.6522**（Δ = −0.0002 vs PubMedBERT noweight 0.6524）
+- 校準後 est LB：全部低於 0.65197
+
+**結論**：focal-prior weights 對 class5 的調整幅度不足（1.06×），等同無效。Train 分布本就接近 target prior，幾乎無校正空間。
 
 ---
 
@@ -339,9 +361,13 @@ def evaluate(submission_path, gt, verbose=True):
 | `train_scibert_colab.ipynb` | SciBERT 訓練實驗 | Legacy |
 | `zero_shot_ensemble_colab.ipynb` | DeBERTa-MNLI zero-shot ensemble | Legacy |
 | `ensemble_agg_colab.py` | weighted ensemble 實驗 | 備用 |
-| **`train_and_calibrate_colab.py`** | **訓練 + 校準完整流程** | **推薦使用** |
-| **`threshold_opt_colab.py`** | **F1 threshold 優化** | **當前版本** |
-| `train_focal_colab.py` | focal loss 獨立訓練 | 備用 |
+| `train_and_calibrate_colab.py` | 訓練 + 校準完整流程 | 備用 |
+| `threshold_opt_colab.py` | F1 threshold 優化（已確認無效） | 封存 |
+| `train_focal_colab.py` | focal loss 獨立訓練 | 封存 |
+| `train_focalprior_colab.py` | Strategy C：CE + focal-prior（已確認無效）| 封存 |
+| **`train_deberta_colab.py`** | **DeBERTa-v3-large 訓練（Phase 1）** | **當前** |
+| **`train_pseudo_colab.py`** | **Pseudo-labeling 訓練（Phase 2）** | **當前** |
+| **`final_ensemble_colab.py`** | **全 stack ensemble 校準（Phase 3）** | **當前** |
 
 ---
 
@@ -375,8 +401,12 @@ def evaluate(submission_path, gt, verbose=True):
 | `cal4_vec` | 0.6706 | 0.6504 | Vector scaling only |
 | `cal4_prior` | 0.6695 | 0.6493 | Prior adj only |
 | `cal4_vec_prior` | **0.6724** | **0.6522** | **已確認 0.65197** |
-| `f1opt4_f1opt` | TBD | TBD | 直接 F1 優化（待提交） |
-| `vf1opt4_f1opt_prior` | TBD | TBD | Vec+F1+prior（待提交） |
+| `f1opt4r03_f1opt` | 0.6679 | 0.6477 | F1-opt r=0.3（未提交，低於最佳） |
+| `f1opt4r03_f1opt_prior` | 0.6688 | 0.6486 | F1-opt+prior r=0.3（未提交） |
+| `vf1opt4r03_f1opt` | 0.6692 | 0.6490 | Vec+F1-opt r=0.3（未提交） |
+| `vf1opt4r03_f1opt_prior` | 0.6712 | 0.6510 | Vec+F1-opt+prior r=0.3（未提交） |
+| `stc_single_vec_prior` | — | — | Strategy C single（未提交，低於最佳） |
+| `stc_fd_plus_vec_prior` | — | — | Strategy C + final_d（未提交） |
 
 ---
 
@@ -426,23 +456,29 @@ Gap 隨 ensemble 規模增大（約 −0.020 for 4-model ensemble），穩定後
 
 ## 7. 未來方向
 
-### 短期可嘗試（預估 est LB）
+### Phase 7 計畫：Full-Stack Ceiling（進行中）
 
-| 方向 | 預期 Est LB | 風險 |
-|---|---|---|
-| F1-threshold 優化（threshold_opt.py） | 0.653–0.655 | OOF overfit 風險中等（有 regularize） |
-| DeBERTa-v3-large 加入 ensemble | 0.652–0.654 | 訓練時間長 |
-| 訓練策略 C：CE + focal-prior only | 0.650–0.653 | 未知 |
-| 更多 PubMedBERT-family seeds | 0.649–0.650 | 邊際效益遞減 |
+**合法天花板手段全疊加**，以 3 個 Colab 腳本分 3 階段執行：
+
+| 階段 | 腳本 | 手段 | 預估 LB |
+|---|---|---|---|
+| Phase 1 | `train_deberta_colab.py` | DeBERTa-v3-large（最大架構多樣性） | +0.005–0.010 |
+| Phase 2 | `train_pseudo_colab.py` | Pseudo-labeling（confidence ≥ 0.80） | +0.003–0.007 |
+| Phase 3 | `final_ensemble_colab.py` | 6 組模型全 stack 校準 | 疊加 |
+| **目標** | | | **~0.660–0.665** |
 
 ### 已排除的方向（實驗驗證無效）
 
-- BCE multi-label（gap −0.100）
-- 3+ 個同架構 seeds（負收益）
-- 超過 6 個模型的 ensemble（訊號稀釋）
-- Data cleaning + retraining（OOF leak）
-- Zero-shot ensemble（弱模型稀釋強模型）
-- Per-class logit calibration（OOF overfit）
+| 方向 | 結果 | 原因 |
+|---|---|---|
+| BCE multi-label | LB 0.596（gap −0.100） | sigmoid 軟分布不適合單標籤 argmax |
+| 3+ 個同架構 seeds | −0.002 | 高相關性 ρ~0.9，訊號重複 |
+| Zero-shot ensemble（BART-MNLI） | −0.003 | 弱模型稀釋強模型 |
+| Data cleaning + retraining | 0.615（−0.03） | OOF leak |
+| Per-class logit calibration（Phase 1）| −0.009 | OOF overfit |
+| F1-threshold optimization | 全部退步 | OOF overfit，regularize 無解 |
+| Strategy C：CE + focal-prior | Δ = −0.0002 | train≈target prior，無校正空間 |
+| Focal loss + focal-prior | Δ = −0.0085 | 雙重懲罰 class5 |
 
 ---
 
@@ -463,6 +499,23 @@ LB 從 0.471 提升至 0.65197，總增益 **+0.181**，其中：
 
 ---
 
-*Report generated: 2026-05-25*
+---
+
+## Phase 7 補充（Full-Stack Ceiling）
+
+### MLE Code Review 發現的主要風險
+
+由 `ecc:mle-reviewer` 審查後，確認以下已知風險（競賽期間不影響結果，日後需修正）：
+
+| 嚴重度 | 問題 | 狀態 |
+|---|---|---|
+| CRITICAL | `calibrate.py` / `threshold_opt.py` 重新呼叫 `make_folds` 而非讀 `val_index.csv`；若 sklearn/pandas 版本改變會靜默漂移 | 已知風險，目前 seed=42 固定可規避 |
+| HIGH | OOF F1 是 in-sample 估計，無 holdout 驗證 regularize 強度 | 已知，threshold-opt 已放棄 |
+| HIGH | Prior adjustment `source_prior` 不一致（OOF 用 oof mean，test 用 test mean）| 已知，影響輕微 |
+
+---
+
+*Report last updated: 2026-05-25*
 *Best LB: 0.65197（cal4_vec_prior）*
+*Phase 7 目標 LB：~0.660–0.665（進行中）*
 *Project: https://github.com/eric20041027/Data_Mining*
