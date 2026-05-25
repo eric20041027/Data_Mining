@@ -112,10 +112,15 @@ for fold in range(5):
         '--class-weight', 'focal-prior',   # focal-prior weights 單獨使用
         '--tag', f'{TAG}_fold{fold}',
     ]
-    result = subprocess.run(cmd, cwd=REPO_DIR, capture_output=False, text=True)
+    result = subprocess.run(cmd, cwd=REPO_DIR, capture_output=True, text=True)
 
     elapsed = (time.time() - t0) / 60
     status = '✅' if result.returncode == 0 else '❌'
+    print(result.stdout[-3000:] if result.stdout else '')
+    if result.returncode != 0:
+        print('--- STDERR ---')
+        print(result.stderr[-2000:])
+        print('-' * 40)
     print(f'{status} Fold {fold} done ({elapsed:.1f} min)')
 
     # 讀取 val F1
