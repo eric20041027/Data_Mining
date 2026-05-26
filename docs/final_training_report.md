@@ -1,11 +1,74 @@
 # 完整訓練實驗統整報告
 # Medical Abstracts 5-Class Classification
 
-**競賽期間**：2026-05-20 ~ 2026-05-26  
+**競賽期間**：2026-05-19 ~ 2026-05-26（含原始 repo Kaggle_medical_competition）  
 **最終最佳 LB**：**0.65197**（cal4_vec_prior）  
-**起點 LB**：0.471  
-**總增益**：+0.181  
-**總 LB 提交次數**：~25 次  
+**起點 LB**：0.535（舊 repo 第一次成功提交）  
+**總增益**：+0.117（從舊 repo 起算）；若從 TF-IDF 0.471 起算 **+0.181**  
+**總 LB 提交次數**：~35 次（含舊 repo ~10 次）  
+
+---
+
+## 零、舊 Repo 實驗紀錄（Kaggle_medical_competition，2026-05-19~05-20）
+
+> 競賽最初在此 repo 開發，後因架構調整轉移至 Data_Mining repo  
+> Repo：https://github.com/eric20041027/Kaggle_medical_competition.git
+
+### 腳本架構
+
+```
+scripts/
+  colab/    — Colab 訓練腳本（BiomedBERT, BioLinkBERT, DeBERTa, Soft-label）
+  kaggle/   — Kaggle Notebook 版本
+  local/    — 本地 ensemble / 閾值搜尋
+```
+
+### 舊 Repo 主要訓練腳本演進
+
+| Commit | 日期 | 腳本 | 改動內容 |
+|---|---|---|---|
+| `755ef52` | 05-19 | `phase1_baseline.py` | 初版：BiomedBERT-large，2-fold，清洗資料（7,995 筆）|
+| `9f111fa` | 05-19 | `phase2_label_engineering.py` | 多數投票去衝突 + v2 腳本 |
+| `9b7c6c3` | 05-19 | `colab_deberta_kfold.py` | DeBERTa-v3-large K-fold（第一次嘗試）|
+| `589b049` | 05-19 | 同上 | **Fix：BF16 → FP32**（BF16 造成 zero gradients，與 Phase 7 同樣問題！）|
+| `05b183e` | 05-19 | 同上 | Fix：移除 undefined scaler，LR 5e-6→2e-5 |
+| `4cdcbf4` | 05-19 | 同上 | Fix：no weight_decay on bias/LayerNorm，clip_norm 1→5 |
+| `b333f72` | 05-19 | 同上 | Revert LR 2e-5→5e-6（梯度爆炸）|
+| `df8de12` | 05-19 | `colab_biolinkbert_kfold.py` | BioLinkBERT-large + FGM 加入 |
+| `ab1af21` | 05-19 | `colab_biolinkbert_fgm_pseudo_kfold.py` | Pseudo-labeling（threshold=0.75，799 筆）|
+| `6e75d3b` | 05-19 | `colab_biomedbert_softlabel.py` | KL divergence soft label + FGM + class5 boost |
+| `3b06549` | 05-19 | `colab_biomedbert_fgm_v2.py` | BiomedBERT + FGM v2，class5 boost 2.5×，雙段訓練 |
+| `00f7b97` | 05-20 | `ensemble_biolinkbert_raw.py` | BiomedBERT + BioLinkBERT raw 資料 ensemble |
+| `948fbc2` | 05-20 | `kaggle_deberta_rdrop.py` | DeBERTa + R-Drop（正規化雜訊標籤）|
+| `c35fb5d` | 05-20 | `colab_deberta_kfold.py` | Fix DeBERTa NaN loss：強制 float32，增大 AdamW eps |
+| `58ac66c` | 05-20 | `kaggle_large_kfold_v2.py` | MAX_LEN 512→384，EPOCHS 10→8（提速）|
+
+### 舊 Repo LB 提交紀錄
+
+| 提交 | 腳本 | 資料 | Val/OOF | **LB** | 備註 |
+|---|---|---|---|---|---|
+| Softlabel 1.9× boost | `colab_biomedbert_softlabel.py` | 原始 12,994 | — | 0.535 | class5 嚴重過預測 |
+| BiomedBERT+FGM v2 | `colab_biomedbert_fgm_v2.py` | 原始 12,994 | 0.66 | 0.567 | class5 double boost bug |
+| BiomedBERT-large K-fold | `kaggle_large_kfold.py` | **清洗 7,995** | **0.818** | 0.574 | OOF 嚴重虛高，gap −0.244 |
+| Ensemble equal（3 models）| local script | 混合 | — | 0.615 | 混入清洗資料模型被拉低 |
+| BiomedBERT+BioLinkBERT v2 | `kaggle_ensemble_v2.py` | 清洗 10,395 | 0.7586 | 0.620 | distribution mismatch |
+| NLI+FGM+BiomedBERT v3 | `kaggle_ensemble_v3.py` | 清洗 10,395 | 0.7583 | 0.622 | distribution mismatch |
+| **BiomedBERT-large（原始資料）** | **`kaggle_large_kfold_v2.py`** | **原始 12,994** | **0.6581** | **0.63970** ⭐ | **舊 repo 最佳** |
+
+### 舊 Repo 關鍵教訓（轉移至新 repo 前的認識）
+
+| 教訓 | 數據佐證 |
+|---|---|
+| **清洗資料（7,995 筆）造成 distribution mismatch** | OOF 0.818 vs LB 0.574，gap −0.244 |
+| **原始資料（12,994 筆）OOF 更 honest** | OOF 0.658 vs LB 0.640，gap −0.018 |
+| **DeBERTa-v3-large BF16 → NaN/zero gradients** | 3 次 commit 才修好（強制 FP32）|
+| **Class5 boost multiplier 必然過預測** | Softlabel 1.9× → LB 0.535（災難）|
+| **KL divergence soft label 學到「不確定=class5」偏誤** | val 虛高，LB 0.535 |
+| **FGM（Fast Gradient Method）對此 task 無顯著增益** | LB 0.567，遜於無 FGM 版本 |
+
+### 轉移原因
+
+舊 repo 實驗以 Kaggle Notebook 為主，缺乏系統化 CV 框架與模組化設計。確認「原始資料 + 無後處理」路線後，新開 Data_Mining repo 以 HuggingFace Trainer + 統一 5-fold StratifiedKFold 重建整個 pipeline。
 
 ---
 
@@ -394,4 +457,47 @@ Pseudo-label 分布：neoplasms 192 / cardio 110 / general 77 / digestive 5 / **
 
 ---
 
-*Generated: 2026-05-26 | Project: https://github.com/eric20041027/Data_Mining*
+---
+
+## 七、兩個 Repo 的 LB 完整時間軸
+
+```
+2026-05-19  舊 repo 開始
+  0.535  Softlabel 1.9× boost（BiomedBERT）
+  0.567  BiomedBERT + FGM v2
+  0.574  BiomedBERT-large K-fold（清洗資料，OOF 嚴重虛高）
+  0.615  3-model ensemble（混合清洗/原始）
+  0.620  BiomedBERT + BioLinkBERT ensemble（清洗資料）
+  0.622  NLI + FGM + BiomedBERT ensemble（清洗資料）
+  0.640  BiomedBERT-large（原始資料）← 舊 repo 最佳，轉移觸發點
+
+2026-05-20  轉移至 Data_Mining repo
+  0.471  TF-IDF + overlap constraint（baseline）
+  0.523  TF-IDF 無 constraint
+  0.625  PubMedBERT calibration 無 constraint
+  0.635  PubMedBERT raw（無後處理）← 突破
+
+2026-05-22
+  0.641  PubMedBERT noweight seed=42
+  0.643  + seed=2024（2 seeds）
+  0.644  + BioBERT（3 models）
+  0.646  + PubMedBERT-large（4 models）← final_d
+
+2026-05-23
+  0.596  BCE multi-label ❌（OOF 灌水）
+  0.591  GroupKFold BCE ❌
+  0.644  v22 SciBERT 替換 BioBERT
+
+2026-05-24
+  0.643  BART zero-shot ensemble
+  0.615  data cleaning 50% ❌
+  0.643  MLM pretraining
+
+2026-05-25
+  ★ 0.65197  cal4_vec_prior（Vector Scaling + Prior Adjustment）← 最終最佳
+
+2026-05-26  GPU 配額耗盡，結案
+```
+
+*Generated: 2026-05-26*  
+*Repos: https://github.com/eric20041027/Kaggle_medical_competition | https://github.com/eric20041027/Data_Mining*
