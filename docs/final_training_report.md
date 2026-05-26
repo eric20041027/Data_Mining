@@ -371,6 +371,11 @@ Pseudo-label 分布：neoplasms 192 / cardio 110 / general 77 / digestive 5 / **
 | 05-24 | `v37_fd050_clean050` | data cleaning 50% | 0.8282 | 0.615 ❌ |
 | 05-24 | `v40_fd095_mlm005` | MLM pretraining | 0.6586 | 0.643 |
 | 05-25 | **`cal4_vec_prior`** | **vec scaling + prior adj** | **0.6724** | **0.65197 ★** |
+| 05-26 | `cal4_temp_prior` | temperature scaling + prior adj | — | 0.64917 ❌ |
+| 05-26 | `stc_fd_plus_vec` | Strategy C + final_d（vec only） | — | 0.64808 ❌ |
+| 05-26 | `stc_fd_plus_vec_prior` | Strategy C + final_d（vec+prior） | — | 0.64674 ❌ |
+| 05-26 | `vf1opt4r03_f1opt_prior` | vec+F1-opt+prior r=0.3 | 0.6712 | 0.65095 ❌ |
+| 05-26 | `stc_single_vec_prior` | Strategy C single（vec+prior） | — | 0.63356 ❌ |
 
 ---
 
@@ -496,8 +501,18 @@ Pseudo-label 分布：neoplasms 192 / cardio 110 / general 77 / digestive 5 / **
 2026-05-25
   ★ 0.65197  cal4_vec_prior（Vector Scaling + Prior Adjustment）← 最終最佳
 
-2026-05-26  GPU 配額耗盡，結案
+2026-05-26  後續追加提交（GPU 配額耗盡後，使用既有模型結果）
+  0.65095  vf1opt4r03_f1opt_prior（vec+F1-opt+prior r=0.3）❌ 未超越最佳
+  0.64917  cal4_temp_prior（temperature scaling + prior adj）❌
+  0.64808  stc_fd_plus_vec（Strategy C + final_d vec only）❌
+  0.64674  stc_fd_plus_vec_prior（Strategy C + final_d vec+prior）❌
+  0.63356  stc_single_vec_prior（Strategy C single model）❌
 ```
+
+---
+
+**結論：所有後續提交均未能超越 `cal4_vec_prior` 的 0.65197**  
+Vector Scaling + Prior Adjustment 是本次競賽在合法手段下的實際天花板。
 
 *Generated: 2026-05-26*  
 *Repos: https://github.com/eric20041027/Kaggle_medical_competition | https://github.com/eric20041027/Data_Mining*

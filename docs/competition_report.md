@@ -12,7 +12,7 @@
 - **最終 LB**：**0.65197**（Vector Scaling + Prior Adjustment）
 - **總增益**：+0.181 LB
 - **實驗週期**：5 天（2026-05-20 至 2026-05-25）
-- **LB 提交次數**：~20 次
+- **LB 提交次數**：~25 次（含 05-26 後續 5 次追加提交）
 - **關鍵洞察**：資料集是多標籤強制單標籤化，移除所有「處理類別不平衡」的做法反而最有效
 
 ---
@@ -404,9 +404,11 @@ def evaluate(submission_path, gt, verbose=True):
 | `f1opt4r03_f1opt` | 0.6679 | 0.6477 | F1-opt r=0.3（未提交，低於最佳） |
 | `f1opt4r03_f1opt_prior` | 0.6688 | 0.6486 | F1-opt+prior r=0.3（未提交） |
 | `vf1opt4r03_f1opt` | 0.6692 | 0.6490 | Vec+F1-opt r=0.3（未提交） |
-| `vf1opt4r03_f1opt_prior` | 0.6712 | 0.6510 | Vec+F1-opt+prior r=0.3（未提交） |
-| `stc_single_vec_prior` | — | — | Strategy C single（未提交，低於最佳） |
-| `stc_fd_plus_vec_prior` | — | — | Strategy C + final_d（未提交） |
+| `vf1opt4r03_f1opt_prior` | 0.6712 | 0.6510 | **已提交 → 實際 LB 0.65095** ❌ |
+| `cal4_temp_prior` | 0.6664 | 0.6462 | **已提交 → 實際 LB 0.64917** ❌ |
+| `stc_fd_plus_vec` | — | — | **已提交 → 實際 LB 0.64808** ❌ |
+| `stc_fd_plus_vec_prior` | — | — | **已提交 → 實際 LB 0.64674** ❌ |
+| `stc_single_vec_prior` | — | — | **已提交 → 實際 LB 0.63356** ❌ |
 
 ---
 
@@ -515,7 +517,23 @@ LB 從 0.471 提升至 0.65197，總增益 **+0.181**，其中：
 
 ---
 
-*Report last updated: 2026-05-25*
-*Best LB: 0.65197（cal4_vec_prior）*
-*Phase 7 目標 LB：~0.660–0.665（進行中）*
+### Phase 7 最終結果（2026-05-26）
+
+後續追加提交 5 次，均未超越最佳分數：
+
+| 提交 | 實際 LB | vs 最佳 |
+|---|---|---|
+| `vf1opt4r03_f1opt_prior` | 0.65095 | −0.00102 |
+| `cal4_temp_prior` | 0.64917 | −0.00280 |
+| `stc_fd_plus_vec` | 0.64808 | −0.00389 |
+| `stc_fd_plus_vec_prior` | 0.64674 | −0.00523 |
+| `stc_single_vec_prior` | 0.63356 | −0.01841 |
+
+**結論**：`cal4_vec_prior`（0.65197）為本次競賽不可突破的實際天花板，所有後處理手段均無法進一步提升。DeBERTa-v3-large 因 GPU 配額耗盡未能修正 bf16 問題，偽標籤因 nervous system class 無樣本而放棄。
+
+---
+
+*Report last updated: 2026-05-26*
+*Best LB: 0.65197（cal4_vec_prior）← 最終成績*
+*Phase 7：GPU 配額耗盡，結案*
 *Project: https://github.com/eric20041027/Data_Mining*
