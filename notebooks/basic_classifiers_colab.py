@@ -96,16 +96,16 @@ configs = [
      Pipeline([('v', TfidfVectorizer(**TFIDF)),
                ('c', DecisionTreeClassifier(max_depth=None,
                                             min_samples_leaf=5, random_state=42))])),
-    # KNN
+    # KNN (n_jobs=-1 使用所有 CPU 核心加速)
     ('KNN #1', 'KNeighborsClassifier(n_neighbors=5, metric=cosine)',
      Pipeline([('v', TfidfVectorizer(**TFIDF)),
-               ('c', KNeighborsClassifier(n_neighbors=5, metric='cosine'))])),
+               ('c', KNeighborsClassifier(n_neighbors=5, metric='cosine', n_jobs=-1))])),
     ('KNN #2', 'KNeighborsClassifier(n_neighbors=11, metric=cosine)',
      Pipeline([('v', TfidfVectorizer(**TFIDF)),
-               ('c', KNeighborsClassifier(n_neighbors=11, metric='cosine'))])),
+               ('c', KNeighborsClassifier(n_neighbors=11, metric='cosine', n_jobs=-1))])),
     ('KNN #3', 'KNeighborsClassifier(n_neighbors=3, metric=cosine)',
      Pipeline([('v', TfidfVectorizer(**TFIDF)),
-               ('c', KNeighborsClassifier(n_neighbors=3, metric='cosine'))])),
+               ('c', KNeighborsClassifier(n_neighbors=3, metric='cosine', n_jobs=-1))])),
     # SVM
     ('SVM #1', 'LinearSVC(C=1.0)',
      Pipeline([('v', TfidfVectorizer(**TFIDF)),
